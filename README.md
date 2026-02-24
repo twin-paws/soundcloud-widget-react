@@ -134,12 +134,13 @@ Attach a `ref` to `<SCWidget>` and call these methods imperatively:
 | `getCurrentSoundIndex(cb)` | Async get index of current sound |
 | `isPaused(cb)` | Async check if paused |
 
-## SSR Note
+## SSR / Next.js
 
-This component is **client-only**. It uses an `<iframe>` and communicates via `postMessage`, neither of which are available in server-side rendering environments. When using Next.js or similar frameworks, import it with dynamic loading and `ssr: false`:
+This component is **client-only** — it uses an `<iframe>` and communicates via `postMessage`.
+
+### Option A — Dynamic import (simplest)
 
 ```tsx
-// Next.js example
 import dynamic from "next/dynamic";
 
 const SCWidget = dynamic(
@@ -147,6 +148,45 @@ const SCWidget = dynamic(
   { ssr: false }
 );
 ```
+
+### Option B — `<Script strategy="beforeInteractive">` (recommended for persistent players)
+
+Load the SoundCloud API globally in your root layout and render `<SCWidget>` directly inside a `"use client"` component. The library detects that `window.SC` is already available and skips redundant script injection:
+
+```tsx
+// app/layout.tsx (Next.js App Router)
+import Script from "next/script";
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Script
+          strategy="beforeInteractive"
+          src="https://w.soundcloud.com/player/api.js"
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx
+// components/PlayerBar.tsx
+"use client";
+import { SCWidget } from "soundcloud-widget-react";
+
+export function PlayerBar({ url }: { url: string }) {
+  return <SCWidget url={url} height={166} width="100%" autoPlay />;
+}
+```
+
+> **Note (v1.0.7+):** If the SC API script is already in the DOM (e.g. via `beforeInteractive`), `useScript` resolves immediately instead of injecting a duplicate `<script>` tag. Earlier versions would silently fail and crash on unmount in this scenario.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
 
 ## License
 

@@ -1,0 +1,46 @@
+# soundcloud-widget-react
+
+React component library wrapping the SoundCloud HTML5 Widget API with full TypeScript support.
+
+## Package
+
+- npm: `soundcloud-widget-react`
+- Version: 1.0.7
+- License: MIT
+- Peer deps: react >= 17, react-dom >= 17
+
+## Core Export
+
+```tsx
+import { SCWidget } from "soundcloud-widget-react";
+import type { SCWidgetRef, SCWidgetProps, SCAudioEventPayload, SCSound } from "soundcloud-widget-react";
+```
+
+## SCWidget Props
+
+Required: `url: string` — SoundCloud track, playlist, or user URL.
+
+Optional display: `width`, `height`, `style`, `className`, `iframeId`
+
+Optional player params: `autoPlay`, `color`, `buying`, `sharing`, `download`, `showArtwork`, `showPlaycount`, `showUser`, `startTrack`, `singleActive`, `showTeaser`
+
+Events: `onReady`, `onPlay`, `onPause`, `onFinish`, `onSeek`, `onPlayProgress`, `onLoadProgress`, `onError`, `onClickDownload`, `onClickBuy`, `onOpenSharePanel`
+
+Audio event payload: `{ relativePosition: number, loadProgress: number, currentPosition: number }`
+
+## Ref API (SCWidgetRef)
+
+Attach with `useRef<SCWidgetRef>()`. Methods: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-1)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`, `getVolume(cb)`, `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
+
+## Next.js Integration
+
+Two options:
+1. Dynamic import with `ssr: false`
+2. Load SC API globally via `<Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js">` in root layout, then use `<SCWidget>` directly in `"use client"` components. Library detects existing `window.SC` and skips duplicate injection (v1.0.7+).
+
+## Key Behaviors
+
+- Script is loaded once (singleton promise), deduped across multiple instances
+- Callbacks use stable refs — handlers update without re-binding the widget
+- URL/param changes trigger `widget.load()` — no iframe remount
+- Client-only: uses iframe + postMessage, not SSR-safe without dynamic import
