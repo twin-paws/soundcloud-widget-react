@@ -5,7 +5,7 @@ React component library wrapping the SoundCloud HTML5 Widget API with full TypeS
 ## Package
 
 - npm: `soundcloud-widget-react`
-- Version: 1.0.7
+- Version: 1.0.8
 - License: MIT
 - Peer deps: react >= 17, react-dom >= 17
 

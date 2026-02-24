@@ -38,7 +38,7 @@ const PARAM_MAP: Array<[keyof SCWidgetParams, string]> = [
 
 function buildIframeSrc(url: string, params: SCWidgetParams): string {
   const search = new URLSearchParams();
-  search.set("url", encodeURIComponent(url));
+  search.set("url", url);
 
   for (const [prop, urlKey] of PARAM_MAP) {
     const value = params[prop];

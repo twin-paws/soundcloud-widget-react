@@ -4,6 +4,13 @@ All notable changes to `soundcloud-widget-react` are documented here.
 
 ---
 
+## [1.0.8] — 2026-02-24
+
+### Fixed
+- **Double-encoded iframe URL** — `buildIframeSrc` was calling `encodeURIComponent(url)` before passing to `URLSearchParams.set()`, which encodes again. The SoundCloud player received a double-encoded URL and silently failed to load. Fixed by passing `url` directly.
+
+---
+
 ## [1.0.7] — 2026-02-24
 
 ### Fixed

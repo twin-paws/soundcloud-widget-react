@@ -1,7 +1,7 @@
 # soundcloud-widget-react — Full Reference
 
 React component library wrapping the SoundCloud HTML5 Widget API with full TypeScript support.
-Version: 1.0.7 | License: MIT | npm: soundcloud-widget-react
+Version: 1.0.8 | License: MIT | npm: soundcloud-widget-react
 
 ---
 
