@@ -1,6 +1,50 @@
 # soundcloud-widget-react
 
-The definitive React wrapper for the [SoundCloud HTML5 Widget API](https://developers.soundcloud.com/docs/api/html5-widget) — full TypeScript support, Promise-based getters, generic event bindings, SSR-safe, and a `useSCWidget` hook for reactive state.
+[![npm version](https://img.shields.io/npm/v/soundcloud-widget-react)](https://www.npmjs.com/package/soundcloud-widget-react)
+[![npm downloads](https://img.shields.io/npm/dw/soundcloud-widget-react)](https://www.npmjs.com/package/soundcloud-widget-react)
+[![license](https://img.shields.io/npm/l/soundcloud-widget-react)](https://github.com/twin-paws/soundcloud-widget-react/blob/main/LICENSE)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/soundcloud-widget-react)](https://bundlephobia.com/package/soundcloud-widget-react)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+
+The definitive React wrapper for the [SoundCloud HTML5 Widget API](https://developers.soundcloud.com/docs/api/html5-widget) — TypeScript-native, Promise-based getters, reactive `useSCWidget` hook, SSR-safe, zero runtime dependencies.
+
+---
+
+## Why This Package?
+
+The SoundCloud Widget API has been around for years, but most React wrappers for it were written before TypeScript was mainstream and before React hooks existed. The most popular alternative, [react-soundcloud-widget](https://github.com/troybetz/react-soundcloud-widget), has been effectively abandoned — no TypeScript, no hooks, no Promise-based getters, no SSR guidance. Developers reach for it because they find it first on npm, not because it's good.
+
+`soundcloud-widget-react` is a ground-up TypeScript rewrite built for the way React is written today:
+
+- **Full type coverage** matching the official Widget API spec — events, params, payloads, all of it
+- **Promise-based getters** — `getDurationAsync()`, `getPositionAsync()`, etc. — instead of callback hell
+- **`SCWidgetEvents` enum** so you never mistype an event name string
+- **`useSCWidget` hook** for reactive state (`isPlaying`, `positionMs`, `durationMs`, `sound`) with zero boilerplate
+- **SSR-safe** with explicit Next.js patterns and tested duplicate-script injection prevention
+- **Accessible iframe attributes** (`title`, `loading`, `allow`, `sandbox`, `referrerPolicy`) that older wrappers never exposed
+- **Hidden iframe / controller-only mode** for building fully custom audio UIs
+- **Zero runtime dependencies**
+
+---
+
+## Comparison
+
+| Feature | soundcloud-widget-react v2 | react-soundcloud-widget |
+|---------|:-:|:-:|
+| TypeScript | ✅ Full native | ⚠️ Partial / DefinitelyTyped |
+| React version support | ✅ >= 17 | ⚠️ Old (no hook-era patterns) |
+| Promise-based getters | ✅ Yes | ❌ No — callback only |
+| `SCWidgetEvents` enum | ✅ Yes | ❌ No |
+| Generic `onEvent` map | ✅ Yes | ❌ No |
+| `useSCWidget` hook | ✅ Yes | ❌ No |
+| Hidden / controller-only mode | ✅ Yes | ❌ No |
+| Accessible iframe props | ✅ Yes | ❌ No |
+| Next.js / SSR guidance | ✅ Yes | ❌ No |
+| Duplicate script injection prevention | ✅ Yes | ❌ No |
+| Maintained (2026) | ✅ Yes | ❌ No — last commit 2019 |
+| Zero runtime dependencies | ✅ Yes | ✅ Yes |
+
+---
 
 ## Install
 
@@ -79,7 +123,7 @@ export default function App() {
 | `onClickDownload` | `() => void` | — | Fired when download button clicked |
 | `onClickBuy` | `() => void` | — | Fired when buy button clicked |
 | `onOpenSharePanel` | `() => void` | — | Fired when share panel opens |
-| `onEvent` | `{ [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void }` | — | Generic per-event handlers (can be combined with named handlers) |
+| `onEvent` | `{ [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void }` | — | Generic per-event handlers (additive with named handlers) |
 
 ### SCAudioEventPayload
 
@@ -111,7 +155,9 @@ export default function Player() {
       <button onClick={async () => {
         const duration = await playerRef.current?.getDurationAsync() ?? 0;
         console.log("Duration:", duration, "ms");
-      }}>Log Duration</button>
+      }}>
+        Log Duration
+      </button>
     </>
   );
 }
@@ -159,29 +205,29 @@ export default function Player() {
 
 ## SCWidgetEvents Enum
 
-Use the `SCWidgetEvents` enum for type-safe event names:
+Use `SCWidgetEvents` for type-safe event names — no more string typos:
 
 ```ts
 import { SCWidgetEvents } from "soundcloud-widget-react";
 
-// SCWidgetEvents.READY         = "ready"
-// SCWidgetEvents.PLAY          = "play"
-// SCWidgetEvents.PAUSE         = "pause"
-// SCWidgetEvents.FINISH        = "finish"
-// SCWidgetEvents.SEEK          = "seek"
-// SCWidgetEvents.PLAY_PROGRESS = "play_progress"
-// SCWidgetEvents.LOAD_PROGRESS = "load_progress"
-// SCWidgetEvents.CLICK_BUY     = "click_buy"
-// SCWidgetEvents.CLICK_DOWNLOAD= "click_download"
+// SCWidgetEvents.READY            = "ready"
+// SCWidgetEvents.PLAY             = "play"
+// SCWidgetEvents.PAUSE            = "pause"
+// SCWidgetEvents.FINISH           = "finish"
+// SCWidgetEvents.SEEK             = "seek"
+// SCWidgetEvents.PLAY_PROGRESS    = "play_progress"
+// SCWidgetEvents.LOAD_PROGRESS    = "load_progress"
+// SCWidgetEvents.CLICK_BUY        = "click_buy"
+// SCWidgetEvents.CLICK_DOWNLOAD   = "click_download"
 // SCWidgetEvents.OPEN_SHARE_PANEL = "open_share_panel"
-// SCWidgetEvents.ERROR         = "error"
+// SCWidgetEvents.ERROR            = "error"
 ```
 
 ---
 
 ## Generic `onEvent` Binding
 
-`onEvent` lets you handle multiple events in one map, with full type inference per event. Named props (`onPlay`, `onPause`, …) and `onEvent` entries are called independently — you can use both at once:
+`onEvent` lets you handle multiple events in one map, with full type inference per event. Named props (`onPlay`, `onPause`, …) and `onEvent` entries are called independently — use both at once:
 
 ```tsx
 import { SCWidget, SCWidgetEvents } from "soundcloud-widget-react";
@@ -221,7 +267,7 @@ export default function Player() {
         {state.isPlaying ? "Playing" : "Paused"} —{" "}
         {Math.round(state.positionMs / 1000)}s / {Math.round(state.durationMs / 1000)}s
       </p>
-      {state.sound && <p>Now: {state.sound.title}</p>}
+      {state.sound && <p>Now playing: {state.sound.title}</p>}
 
       <button onClick={controls.play}>Play</button>
       <button onClick={controls.pause}>Pause</button>
@@ -264,7 +310,7 @@ interface SCWidgetState {
 
 ## Hidden iframe / Controller-Only Pattern
 
-Render an invisible player to control audio without any visible UI:
+Render an invisible player to control audio without any visible UI — perfect for custom audio players, background music, or ambient audio:
 
 ```tsx
 import { SCWidget, useSCWidget } from "soundcloud-widget-react";
@@ -292,7 +338,7 @@ export default function InvisiblePlayer() {
 }
 ```
 
-The hidden prop renders the iframe as a 1×1 invisible element. The `width`, `height`, `style`, and `className` props are ignored in this mode.
+The `hidden` prop renders the iframe as a 1×1 invisible element. The `width`, `height`, `style`, and `className` props are ignored in this mode.
 
 ---
 
@@ -362,7 +408,7 @@ script-src https://w.soundcloud.com;
 ```tsx
 const { ref, state, props, controls } = useSCWidget();
 
-// Show a button until the user taps — don't call play() on mount
+// Don't call play() on mount — wait for user interaction
 return (
   <>
     <SCWidget ref={ref} url={url} {...props} hidden />
@@ -377,22 +423,37 @@ return (
 
 ---
 
-## Comparison: soundcloud-widget-react vs react-soundcloud-widget
+## Related
 
-| Feature | soundcloud-widget-react v2 | react-soundcloud-widget |
-|---------|---------------------------|------------------------|
-| TypeScript | Full, strict | Partial / DefinitelyTyped |
-| Promise-based getters | Yes (`getDurationAsync`, etc.) | No (callback only) |
-| Generic `onEvent` map | Yes (`SCWidgetEvents` enum) | No |
-| `useSCWidget` hook | Yes (reactive state + controls) | No |
-| Hidden/controller-only mode | Yes (`hidden` prop) | No |
-| Accessible iframe (`title`) | Yes | No |
-| Next.js SSR safe | Yes (dynamic import + beforeInteractive) | Partial |
-| Maintained (2026) | Yes | No (archived) |
+This package is part of the **twin-paws SoundCloud ecosystem**:
+
+| Package | Purpose |
+|---------|---------|
+| [soundcloud-api-ts](https://github.com/twin-paws/soundcloud-api-ts) | TypeScript-first SoundCloud REST API client — typed access to tracks, users, playlists, and OAuth |
+| [soundcloud-api-ts-next](https://github.com/twin-paws/soundcloud-api-ts-next) | Next.js integration: React hooks, secure API routes, OAuth PKCE, RSC helpers |
+| **soundcloud-widget-react** ← you are here | React component for the SoundCloud HTML5 Widget API — embed players and control playback programmatically |
+
+**Common pattern** — combine all three in a Next.js app:
+
+```tsx
+// 1. Fetch track data server-side (soundcloud-api-ts-next)
+import { getTrack } from "soundcloud-api-ts-next/server";
+const track = await getTrack(trackId, config, { revalidate: 60 });
+
+// 2. Render an embeddable player (soundcloud-widget-react)
+import { SCWidget } from "soundcloud-widget-react";
+<SCWidget url={track.permalink_url} onPlay={() => trackPlay(track.id)} />
+
+// 3. React hooks for dynamic data (soundcloud-api-ts-next)
+import { useTrack } from "soundcloud-api-ts-next";
+const { data } = useTrack(trackId);
+```
 
 ---
 
-## Changelog
+## Contributing
+
+Issues and PRs welcome at [github.com/twin-paws/soundcloud-widget-react](https://github.com/twin-paws/soundcloud-widget-react).
 
 See [CHANGELOG.md](./CHANGELOG.md) for version history.
 

@@ -8,6 +8,7 @@ Peer deps: react >= 17, react-dom >= 17 | Zero runtime dependencies
 
 # src/types.ts
 
+```ts
 import type { CSSProperties, HTMLAttributeReferrerPolicy } from "react";
 
 export enum SCWidgetEvents {
@@ -159,56 +160,13 @@ export interface SCWidgetState {
   sound: SCSound | null;
   soundIndex: number;
 }
-
----
-
-# src/useScript.ts
-
-Singleton script loader. Deduplicates across multiple widget mounts.
-Returns: { loaded: boolean; error: Error | null }
-
-Handles:
-- window.SC already present (beforeInteractive Next.js Script)
-- Script tag in DOM but not yet executed (polls until window.SC appears, 10s timeout)
-- Network/CSP errors (resets singleton, surfaces via error state)
-- Unmount before resolve (mounted flag prevents state updates on dead components)
-
----
-
-# src/SCWidget.tsx
-
-forwardRef component. Key behaviors:
-- Builds iframe src via URLSearchParams (no double-encoding)
-- Initializes SC.Widget once script loaded + iframe mounted (singleton init guard)
-- Binds all 11 Widget API events; calls both named prop AND onEvent[event] (additive)
-- onReady passes { widget: SCWidgetInstance } to handler
-- Stable callback refs — handlers update without re-binding the widget
-- URL/param changes call widget.load() — no iframe remount
-- hidden=true: renders position:absolute, 1x1px, visibility:hidden, pointerEvents:none
-- allow defaults to "autoplay" if not provided
-
----
-
-# src/useSCWidget.ts
-
-Hook signature:
-  useSCWidget(): { ref, state, props, controls }
-
-ref: React.RefObject<SCWidgetRef | null> — pass to <SCWidget ref={ref} />
-state: SCWidgetState — reactive, driven by widget events
-props: Pick<SCWidgetProps, "onReady"|"onPlay"|"onPause"|"onFinish"|"onPlayProgress"> — spread onto <SCWidget>
-controls: { play, pause, toggle, seekTo, setVolume, next, prev, skip, load } — all stable useCallback refs
-
-State updates:
-- onReady: fetches durationMs, sound, soundIndex via async getters; sets isReady=true
-- onPlay: isPlaying=true
-- onPause/onFinish: isPlaying=false
-- onPlayProgress: positionMs=e.currentPosition
+```
 
 ---
 
 # src/index.ts
 
+```ts
 export { SCWidget } from "./SCWidget";
 export { SCWidget as default } from "./SCWidget";
 export { useSCWidget } from "./useSCWidget";
@@ -217,53 +175,256 @@ export type {
   SCWidgetRef, SCWidgetProps, SCWidgetParams, SCAudioEventPayload,
   SCSound, SCWidgetInstance, SCWidgetState, SCWidgetEventMap,
 } from "./types";
+```
+
+---
+
+# src/useScript.ts
+
+Singleton script loader. Deduplicates across multiple widget mounts.
+Returns: `{ loaded: boolean; error: Error | null }`
+
+Handles:
+- `window.SC` already present (beforeInteractive Next.js Script) — resolves immediately
+- Script tag in DOM but not yet executed — polls until `window.SC` appears (10s timeout)
+- Network/CSP errors — resets singleton, surfaces via error state
+- Unmount before resolve — mounted flag prevents state updates on unmounted components
+
+---
+
+# src/SCWidget.tsx
+
+`forwardRef` component. Key behaviors:
+- Builds iframe src via URLSearchParams (no double-encoding)
+- Initializes `SC.Widget` once script loaded + iframe mounted (singleton init guard)
+- Binds all 11 Widget API events; calls both named prop AND `onEvent[event]` (additive)
+- `onReady` passes `{ widget: SCWidgetInstance }` to handler
+- Stable callback refs — handlers update without re-binding the widget
+- URL/param changes call `widget.load()` — no iframe remount, no flicker
+- `hidden=true`: renders `position:absolute, 1x1px, visibility:hidden, pointerEvents:none`
+- `allow` defaults to `"autoplay"` if not provided
+
+---
+
+# src/useSCWidget.ts
+
+Hook signature:
+```ts
+function useSCWidget(): {
+  ref: React.RefObject<SCWidgetRef | null>;
+  state: SCWidgetState;
+  props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onPlayProgress">;
+  controls: {
+    play(): void;
+    pause(): void;
+    toggle(): void;
+    seekTo(ms: number): void;
+    setVolume(volume: number): void;
+    next(): void;
+    prev(): void;
+    skip(index: number): void;
+    load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
+  };
+}
+```
+
+State updates:
+- `onReady`: fetches `durationMs`, `sound`, `soundIndex` via async getters; sets `isReady=true`
+- `onPlay`: `isPlaying=true`
+- `onPause` / `onFinish`: `isPlaying=false`
+- `onPlayProgress`: `positionMs=e.currentPosition`
+
+All controls are stable `useCallback` refs — safe to use in dependency arrays.
 
 ---
 
 # Usage Examples
 
-## Basic
-<SCWidget url="https://soundcloud.com/artist/track" onReady={({ widget }) => console.log(widget)} />
+## Basic usage
+
+```tsx
+import { SCWidget } from "soundcloud-widget-react";
+
+export default function App() {
+  return (
+    <SCWidget
+      url="https://soundcloud.com/artist/track"
+      autoPlay={false}
+      showArtwork={true}
+      onReady={({ widget }) => console.log("Widget ready", widget)}
+      onPlay={(e) => console.log("Playing at", e.currentPosition)}
+      onFinish={() => console.log("Track finished")}
+    />
+  );
+}
+```
 
 ## useSCWidget (recommended)
-const { ref, state, props, controls } = useSCWidget();
-<SCWidget ref={ref} url="..." {...props} />
-<button onClick={controls.play}>{state.isPlaying ? "Pause" : "Play"}</button>
-<span>{Math.round(state.positionMs / 1000)}s / {Math.round(state.durationMs / 1000)}s</span>
+
+```tsx
+import { SCWidget, useSCWidget } from "soundcloud-widget-react";
+
+export default function Player() {
+  const { ref, state, props, controls } = useSCWidget();
+
+  return (
+    <div>
+      <SCWidget ref={ref} url="https://soundcloud.com/artist/track" {...props} />
+
+      <p>
+        {state.isPlaying ? "Playing" : "Paused"} —{" "}
+        {Math.round(state.positionMs / 1000)}s / {Math.round(state.durationMs / 1000)}s
+      </p>
+      {state.sound && <p>Now playing: {state.sound.title}</p>}
+
+      <button onClick={controls.play}>Play</button>
+      <button onClick={controls.pause}>Pause</button>
+      <button onClick={controls.toggle}>Toggle</button>
+      <button onClick={() => controls.seekTo(30_000)}>Seek to 0:30</button>
+      <button onClick={() => controls.setVolume(0.5)}>50% volume</button>
+    </div>
+  );
+}
+```
 
 ## Generic onEvent
-<SCWidget url="..." onEvent={{
-  [SCWidgetEvents.PLAY]: (e) => console.log("play", e.currentPosition),
-  [SCWidgetEvents.ERROR]: () => handleError(),
-}} />
 
-## Hidden/controller-only
-<SCWidget ref={ref} url="..." hidden autoPlay {...props} />
+```tsx
+import { SCWidget, SCWidgetEvents } from "soundcloud-widget-react";
 
-## Promise getter
-const duration = await playerRef.current?.getDurationAsync() ?? 0;
+<SCWidget
+  url="https://soundcloud.com/artist/track"
+  onEvent={{
+    [SCWidgetEvents.READY]: () => console.log("ready"),
+    [SCWidgetEvents.PLAY]: (e) => console.log("play at", e.currentPosition),
+    [SCWidgetEvents.PLAY_PROGRESS]: (e) => console.log("progress", e.relativePosition),
+    [SCWidgetEvents.ERROR]: () => console.error("player error"),
+  }}
+/>
+```
 
-## Next.js Option A
-dynamic(() => import("soundcloud-widget-react").then(m => m.SCWidget), { ssr: false })
+## Hidden / controller-only
 
-## Next.js Option B (root layout)
-<Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js" />
-// then use <SCWidget> directly in "use client" components
+```tsx
+import { SCWidget, useSCWidget } from "soundcloud-widget-react";
+
+export default function InvisiblePlayer() {
+  const { ref, state, props, controls } = useSCWidget();
+
+  return (
+    <div>
+      <SCWidget ref={ref} url="https://soundcloud.com/artist/track" hidden autoPlay {...props} />
+      <button onClick={controls.toggle}>{state.isPlaying ? "Pause" : "Play"}</button>
+      <span>{Math.round(state.positionMs / 1000)}s</span>
+    </div>
+  );
+}
+```
+
+## Promise-based getters
+
+```tsx
+import { useRef } from "react";
+import { SCWidget, SCWidgetRef } from "soundcloud-widget-react";
+
+export default function Player() {
+  const playerRef = useRef<SCWidgetRef>(null);
+
+  const logInfo = async () => {
+    const duration = await playerRef.current?.getDurationAsync() ?? 0;
+    const position = await playerRef.current?.getPositionAsync() ?? 0;
+    const sound = await playerRef.current?.getCurrentSoundAsync();
+    console.log(`${sound?.title}: ${position}ms / ${duration}ms`);
+  };
+
+  return (
+    <>
+      <SCWidget ref={playerRef} url="https://soundcloud.com/artist/track" />
+      <button onClick={logInfo}>Log Info</button>
+    </>
+  );
+}
+```
+
+## Next.js Option A — dynamic import
+
+```tsx
+import dynamic from "next/dynamic";
+
+const SCWidget = dynamic(
+  () => import("soundcloud-widget-react").then((m) => m.SCWidget),
+  { ssr: false }
+);
+
+export default function Page() {
+  return <SCWidget url="https://soundcloud.com/artist/track" />;
+}
+```
+
+## Next.js Option B — beforeInteractive in root layout
+
+```tsx
+// app/layout.tsx
+import Script from "next/script";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Script
+          strategy="beforeInteractive"
+          src="https://w.soundcloud.com/player/api.js"
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx
+// components/PlayerBar.tsx
+"use client";
+import { SCWidget } from "soundcloud-widget-react";
+
+export function PlayerBar({ url }: { url: string }) {
+  return <SCWidget url={url} height={166} width="100%" autoPlay />;
+}
+```
+
+## Instagram in-app browser fallback
+
+```tsx
+const { ref, state, props, controls } = useSCWidget();
+
+return (
+  <>
+    <SCWidget ref={ref} url={url} {...props} hidden />
+    {!state.isPlaying && (
+      <button onClick={controls.play}>Tap to play</button>
+    )}
+  </>
+);
+```
 
 ---
 
-# Migration: v1 -> v2
+# Migration: v1 → v2
 
-BREAKING: onReady signature changed from `() => void` to `(ctx: { widget: SCWidgetInstance }) => void`
-Update: onReady={() => ...}  =>  onReady={({ widget }) => ...}
+BREAKING: `onReady` signature changed
+- Before: `onReady?: () => void`
+- After:  `onReady?: (ctx: { widget: SCWidgetInstance }) => void`
+- Fix:    `onReady={() => ...}` → `onReady={({ widget }) => ...}`
 
-NEW exports: useSCWidget, SCWidgetEvents, SCWidgetState, SCWidgetEventMap
-NEW props: onEvent, title, loading, allow, sandbox, referrerPolicy, hidden, visual, liking, showComments, hideRelated
-NEW ref methods: *Async() Promise variants
+NEW exports: `useSCWidget`, `SCWidgetEvents`, `SCWidgetState`, `SCWidgetEventMap`
+
+NEW props: `onEvent`, `title`, `loading`, `allow`, `sandbox`, `referrerPolicy`, `hidden`, `visual`, `liking`, `showComments`, `hideRelated`
+
+NEW ref methods: `*Async()` Promise variants for all getters
 
 ---
 
 # Known Limitations
 
 - Instagram in-app browser: blocks autoplay, play() must be from user gesture. Show fallback button.
-- CSP: add frame-src https://w.soundcloud.com and script-src https://w.soundcloud.com
+- CSP: add `frame-src https://w.soundcloud.com` and `script-src https://w.soundcloud.com`
