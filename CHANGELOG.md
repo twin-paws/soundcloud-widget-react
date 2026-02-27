@@ -4,6 +4,25 @@ All notable changes to `soundcloud-widget-react` are documented here.
 
 ---
 
+## [2.0.0] — 2026-02-26
+
+### Breaking Changes
+- **`onReady` signature changed** — now receives `(ctx: { widget: SCWidgetInstance })` instead of `() => void`. Update: `onReady={() => ...}` → `onReady={({ widget }) => ...}`
+
+### Added
+- **`SCWidgetEvents` enum** — type-safe event name constants matching the official Widget API spec (`READY`, `PLAY`, `PAUSE`, `FINISH`, `SEEK`, `PLAY_PROGRESS`, `LOAD_PROGRESS`, `CLICK_BUY`, `CLICK_DOWNLOAD`, `OPEN_SHARE_PANEL`, `ERROR`)
+- **`SCWidgetEventMap` type** — typed payload per event for use with `onEvent`
+- **`onEvent` prop** — generic event handler map; bind any Widget API event without waiting for a named prop. Additive with named props (both are called)
+- **Promise-based ref getters** — `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsync()`, `getSoundsAsync()`, `getCurrentSoundAsync()`, `getCurrentSoundIndexAsync()`, `isPausedAsync()` alongside existing callback versions
+- **`useSCWidget` hook** — returns `{ ref, state, props, controls }` for reactive state-driven UIs. Spread `props` onto `<SCWidget>` for zero-boilerplate event wiring. State: `isReady`, `isPlaying`, `positionMs`, `durationMs`, `sound`, `soundIndex`
+- **New player params** — `visual`, `liking`, `showComments`, `hideRelated`
+- **New iframe props** — `title` (a11y), `loading` ("eager"|"lazy"), `allow` (default `"autoplay"`), `sandbox`, `referrerPolicy`
+- **`hidden` prop** — renders a 1×1 invisible iframe for controller-only / custom UI patterns; ignores layout props
+- **`SCWidgetState` interface** — exported for use with `useSCWidget`
+- **Script loader hardening** — `useScript` now returns `{ loaded, error }`; handles unmount-before-resolve via mounted flag; script errors surfaced to `console.error` on the component
+
+---
+
 ## [1.0.8] — 2026-02-24
 
 ### Fixed
