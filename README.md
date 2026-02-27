@@ -10,6 +10,18 @@ The definitive React wrapper for the [SoundCloud HTML5 Widget API](https://devel
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## Why This Package?
 
 The SoundCloud Widget API has been around for years, but most React wrappers for it were written before TypeScript was mainstream and before React hooks existed. The most popular alternative, [react-soundcloud-widget](https://github.com/troybetz/react-soundcloud-widget), has been effectively abandoned — no TypeScript, no hooks, no Promise-based getters, no SSR guidance. Developers reach for it because they find it first on npm, not because it's good.
@@ -24,6 +36,18 @@ The SoundCloud Widget API has been around for years, but most React wrappers for
 - **Accessible iframe attributes** (`title`, `loading`, `allow`, `sandbox`, `referrerPolicy`) that older wrappers never exposed
 - **Hidden iframe / controller-only mode** for building fully custom audio UIs
 - **Zero runtime dependencies**
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -46,6 +70,18 @@ The SoundCloud Widget API has been around for years, but most React wrappers for
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## Install
 
 ```bash
@@ -57,6 +93,18 @@ yarn add soundcloud-widget-react
 ```
 
 Peer dependencies: `react` and `react-dom` >= 17.
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -78,6 +126,18 @@ export default function App() {
   );
 }
 ```
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -134,6 +194,18 @@ interface SCAudioEventPayload {
   currentPosition: number;   // milliseconds
 }
 ```
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -203,6 +275,18 @@ export default function Player() {
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## SCWidgetEvents Enum
 
 Use `SCWidgetEvents` for type-safe event names — no more string typos:
@@ -225,6 +309,18 @@ import { SCWidgetEvents } from "soundcloud-widget-react";
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## Generic `onEvent` Binding
 
 `onEvent` lets you handle multiple events in one map, with full type inference per event. Named props (`onPlay`, `onPause`, …) and `onEvent` entries are called independently — use both at once:
@@ -242,6 +338,18 @@ import { SCWidget, SCWidgetEvents } from "soundcloud-widget-react";
   }}
 />
 ```
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -308,6 +416,18 @@ interface SCWidgetState {
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## Hidden iframe / Controller-Only Pattern
 
 Render an invisible player to control audio without any visible UI — perfect for custom audio players, background music, or ambient audio:
@@ -339,6 +459,18 @@ export default function InvisiblePlayer() {
 ```
 
 The `hidden` prop renders the iframe as a 1×1 invisible element. The `width`, `height`, `style`, and `className` props are ignored in this mode.
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -401,6 +533,18 @@ script-src https://w.soundcloud.com;
 
 ---
 
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
+
+---
+
 ## Known Limitations
 
 **Instagram in-app browser** — The Instagram browser blocks `autoPlay` and prevents `play()` calls that aren't triggered directly by a user gesture. Show a visible play button as a fallback:
@@ -420,6 +564,18 @@ return (
 ```
 
 **CSP** — If your site has a restrictive CSP and the SoundCloud script fails to load, `SCWidget` will log the error to the console. Whitelist `https://w.soundcloud.com` in both `frame-src` and `script-src`.
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -448,6 +604,18 @@ import { SCWidget } from "soundcloud-widget-react";
 import { useTrack } from "soundcloud-api-ts-next";
 const { data } = useTrack(trackId);
 ```
+
+---
+
+## Demo
+
+Clone the repo and run the demo locally:
+
+```bash
+cd demo && pnpm install && pnpm dev
+```
+
+Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
