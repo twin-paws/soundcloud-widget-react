@@ -8,11 +8,13 @@ import React, {
 import { useScript } from "./useScript";
 import type {
   SCAudioEventPayload,
+  SCSound,
   SCWidgetInstance,
   SCWidgetParams,
   SCWidgetProps,
   SCWidgetRef,
 } from "./types";
+import { SCWidgetEvents } from "./types";
 
 declare global {
   interface Window {
@@ -34,6 +36,10 @@ const PARAM_MAP: Array<[keyof SCWidgetParams, string]> = [
   ["startTrack", "start_track"],
   ["singleActive", "single_active"],
   ["showTeaser", "show_teaser"],
+  ["visual", "visual"],
+  ["liking", "liking"],
+  ["showComments", "show_comments"],
+  ["hideRelated", "hide_related"],
 ];
 
 function buildIframeSrc(url: string, params: SCWidgetParams): string {
@@ -63,6 +69,10 @@ function extractParams(props: SCWidgetProps): SCWidgetParams {
     startTrack: props.startTrack,
     singleActive: props.singleActive,
     showTeaser: props.showTeaser,
+    visual: props.visual,
+    liking: props.liking,
+    showComments: props.showComments,
+    hideRelated: props.hideRelated,
   };
 }
 
@@ -86,15 +96,29 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       onClickDownload,
       onClickBuy,
       onOpenSharePanel,
+      onEvent,
+      title,
+      loading,
+      allow,
+      sandbox,
+      referrerPolicy,
+      hidden,
       ...params
     } = props;
 
-    const { loaded } = useScript();
+    const { loaded, error } = useScript();
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidgetInstance | null>(null);
     const initializedRef = useRef(false);
     const generatedId = useId();
     const frameId = iframeId ?? `sc-widget-${generatedId}`;
+
+    // Log script load errors
+    useEffect(() => {
+      if (error) {
+        console.error("[SCWidget] Failed to load SoundCloud Widget API:", error);
+      }
+    }, [error]);
 
     // Stable refs for callbacks so effects don't re-run on each render
     const callbacksRef = useRef({
@@ -109,6 +133,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       onClickDownload,
       onClickBuy,
       onOpenSharePanel,
+      onEvent,
     });
     useEffect(() => {
       callbacksRef.current = {
@@ -123,6 +148,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
         onClickDownload,
         onClickBuy,
         onOpenSharePanel,
+        onEvent,
       };
     });
 
@@ -135,17 +161,56 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       initializedRef.current = true;
 
       const handlers: Array<[string, (e?: SCAudioEventPayload) => void]> = [
-        ["ready", () => callbacksRef.current.onReady?.()],
-        ["play", (e) => callbacksRef.current.onPlay?.(e as SCAudioEventPayload)],
-        ["pause", (e) => callbacksRef.current.onPause?.(e as SCAudioEventPayload)],
-        ["finish", (e) => callbacksRef.current.onFinish?.(e as SCAudioEventPayload)],
-        ["seek", (e) => callbacksRef.current.onSeek?.(e as SCAudioEventPayload)],
-        ["play_progress", (e) => callbacksRef.current.onPlayProgress?.(e as SCAudioEventPayload)],
-        ["load_progress", (e) => callbacksRef.current.onLoadProgress?.(e as SCAudioEventPayload)],
-        ["error", () => callbacksRef.current.onError?.()],
-        ["click_download", () => callbacksRef.current.onClickDownload?.()],
-        ["click_buy", () => callbacksRef.current.onClickBuy?.()],
-        ["open_share_panel", () => callbacksRef.current.onOpenSharePanel?.()],
+        [SCWidgetEvents.READY, () => {
+          callbacksRef.current.onReady?.({ widget });
+          callbacksRef.current.onEvent?.[SCWidgetEvents.READY]?.(undefined);
+        }],
+        [SCWidgetEvents.PLAY, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onPlay?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY]?.(payload);
+        }],
+        [SCWidgetEvents.PAUSE, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onPause?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.PAUSE]?.(payload);
+        }],
+        [SCWidgetEvents.FINISH, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onFinish?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.FINISH]?.(payload);
+        }],
+        [SCWidgetEvents.SEEK, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onSeek?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.SEEK]?.(payload);
+        }],
+        [SCWidgetEvents.PLAY_PROGRESS, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onPlayProgress?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY_PROGRESS]?.(payload);
+        }],
+        [SCWidgetEvents.LOAD_PROGRESS, (e) => {
+          const payload = e as SCAudioEventPayload;
+          callbacksRef.current.onLoadProgress?.(payload);
+          callbacksRef.current.onEvent?.[SCWidgetEvents.LOAD_PROGRESS]?.(payload);
+        }],
+        [SCWidgetEvents.ERROR, () => {
+          callbacksRef.current.onError?.();
+          callbacksRef.current.onEvent?.[SCWidgetEvents.ERROR]?.(undefined);
+        }],
+        [SCWidgetEvents.CLICK_DOWNLOAD, () => {
+          callbacksRef.current.onClickDownload?.();
+          callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_DOWNLOAD]?.(undefined);
+        }],
+        [SCWidgetEvents.CLICK_BUY, () => {
+          callbacksRef.current.onClickBuy?.();
+          callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_BUY]?.(undefined);
+        }],
+        [SCWidgetEvents.OPEN_SHARE_PANEL, () => {
+          callbacksRef.current.onOpenSharePanel?.();
+          callbacksRef.current.onEvent?.[SCWidgetEvents.OPEN_SHARE_PANEL]?.(undefined);
+        }],
       ];
 
       for (const [event, handler] of handlers) {
@@ -181,12 +246,13 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
 
       widgetRef.current.load(url, {
         ...params,
-        callback: callbacksRef.current.onReady,
+        callback: () => callbacksRef.current.onReady?.({ widget: widgetRef.current! }),
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [url, params.autoPlay, params.color, params.buying, params.sharing,
         params.download, params.showArtwork, params.showPlaycount, params.showUser,
-        params.startTrack, params.singleActive, params.showTeaser]);
+        params.startTrack, params.singleActive, params.showTeaser,
+        params.visual, params.liking, params.showComments, params.hideRelated]);
 
     useImperativeHandle(ref, () => ({
       play: () => widgetRef.current?.play(),
@@ -205,9 +271,77 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       getCurrentSound: (cb) => widgetRef.current?.getCurrentSound(cb),
       getCurrentSoundIndex: (cb) => widgetRef.current?.getCurrentSoundIndex(cb) ?? cb(0),
       isPaused: (cb) => widgetRef.current?.isPaused(cb) ?? cb(true),
+      getDurationAsync: () => new Promise<number>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.getDuration(res);
+        } else {
+          res(0);
+        }
+      }),
+      getPositionAsync: () => new Promise<number>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.getPosition(res);
+        } else {
+          res(0);
+        }
+      }),
+      getVolumeAsync: () => new Promise<number>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.getVolume(res);
+        } else {
+          res(0);
+        }
+      }),
+      getSoundsAsync: () => new Promise<SCSound[]>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.getSounds(res);
+        } else {
+          res([]);
+        }
+      }),
+      getCurrentSoundAsync: () => new Promise<SCSound>((res, rej) => {
+        if (widgetRef.current) {
+          widgetRef.current.getCurrentSound((s) => s ? res(s) : rej(new Error("No sound")));
+        } else {
+          rej(new Error("Widget not ready"));
+        }
+      }),
+      getCurrentSoundIndexAsync: () => new Promise<number>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.getCurrentSoundIndex(res);
+        } else {
+          res(0);
+        }
+      }),
+      isPausedAsync: () => new Promise<boolean>((res) => {
+        if (widgetRef.current) {
+          widgetRef.current.isPaused(res);
+        } else {
+          res(true);
+        }
+      }),
     }));
 
     const src = buildIframeSrc(url, extractParams(props));
+    const allowAttr = allow ?? "autoplay";
+
+    if (hidden) {
+      return (
+        <iframe
+          ref={iframeRef}
+          id={frameId}
+          src={src}
+          title={title}
+          loading={loading}
+          allow={allowAttr}
+          sandbox={sandbox}
+          referrerPolicy={referrerPolicy}
+          scrolling="no"
+          frameBorder="no"
+          style={{ position: "absolute", width: 1, height: 1, visibility: "hidden", pointerEvents: "none" }}
+        />
+      );
+    }
 
     return (
       <iframe
@@ -218,9 +352,13 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
         height={height}
         style={style}
         className={className}
+        title={title}
+        loading={loading}
+        allow={allowAttr}
+        sandbox={sandbox}
+        referrerPolicy={referrerPolicy}
         scrolling="no"
         frameBorder="no"
-        allow="autoplay"
       />
     );
   }

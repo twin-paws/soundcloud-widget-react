@@ -1,4 +1,18 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, HTMLAttributeReferrerPolicy } from "react";
+
+export enum SCWidgetEvents {
+  READY = "ready",
+  PLAY = "play",
+  PAUSE = "pause",
+  FINISH = "finish",
+  SEEK = "seek",
+  PLAY_PROGRESS = "play_progress",
+  LOAD_PROGRESS = "load_progress",
+  CLICK_BUY = "click_buy",
+  CLICK_DOWNLOAD = "click_download",
+  OPEN_SHARE_PANEL = "open_share_panel",
+  ERROR = "error",
+}
 
 export interface SCWidgetParams {
   autoPlay?: boolean;
@@ -12,6 +26,10 @@ export interface SCWidgetParams {
   startTrack?: number;
   singleActive?: boolean;
   showTeaser?: boolean;
+  visual?: boolean;
+  liking?: boolean;
+  showComments?: boolean;
+  hideRelated?: boolean;
 }
 
 export interface SCAudioEventPayload {
@@ -50,6 +68,20 @@ export interface SCWidgetInstance {
   isPaused(callback: (paused: boolean) => void): void;
 }
 
+export type SCWidgetEventMap = {
+  [SCWidgetEvents.READY]: undefined;
+  [SCWidgetEvents.PLAY]: SCAudioEventPayload;
+  [SCWidgetEvents.PAUSE]: SCAudioEventPayload;
+  [SCWidgetEvents.FINISH]: SCAudioEventPayload;
+  [SCWidgetEvents.SEEK]: SCAudioEventPayload;
+  [SCWidgetEvents.PLAY_PROGRESS]: SCAudioEventPayload;
+  [SCWidgetEvents.LOAD_PROGRESS]: SCAudioEventPayload;
+  [SCWidgetEvents.CLICK_BUY]: undefined;
+  [SCWidgetEvents.CLICK_DOWNLOAD]: undefined;
+  [SCWidgetEvents.OPEN_SHARE_PANEL]: undefined;
+  [SCWidgetEvents.ERROR]: undefined;
+};
+
 export interface SCWidgetRef {
   play(): void;
   pause(): void;
@@ -67,6 +99,13 @@ export interface SCWidgetRef {
   getCurrentSound(callback: (sound: SCSound) => void): void;
   getCurrentSoundIndex(callback: (index: number) => void): void;
   isPaused(callback: (paused: boolean) => void): void;
+  getDurationAsync(): Promise<number>;
+  getPositionAsync(): Promise<number>;
+  getVolumeAsync(): Promise<number>;
+  getSoundsAsync(): Promise<SCSound[]>;
+  getCurrentSoundAsync(): Promise<SCSound>;
+  getCurrentSoundIndexAsync(): Promise<number>;
+  isPausedAsync(): Promise<boolean>;
 }
 
 export interface SCWidgetProps extends SCWidgetParams {
@@ -76,7 +115,7 @@ export interface SCWidgetProps extends SCWidgetParams {
   style?: CSSProperties;
   className?: string;
   iframeId?: string;
-  onReady?: () => void;
+  onReady?: (ctx: { widget: SCWidgetInstance }) => void;
   onPlay?: (e: SCAudioEventPayload) => void;
   onPause?: (e: SCAudioEventPayload) => void;
   onFinish?: (e: SCAudioEventPayload) => void;
@@ -87,4 +126,20 @@ export interface SCWidgetProps extends SCWidgetParams {
   onClickDownload?: () => void;
   onClickBuy?: () => void;
   onOpenSharePanel?: () => void;
+  onEvent?: { [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void };
+  title?: string;
+  loading?: "eager" | "lazy";
+  allow?: string;
+  sandbox?: string;
+  referrerPolicy?: HTMLAttributeReferrerPolicy;
+  hidden?: boolean;
+}
+
+export interface SCWidgetState {
+  isReady: boolean;
+  isPlaying: boolean;
+  positionMs: number;
+  durationMs: number;
+  sound: SCSound | null;
+  soundIndex: number;
 }

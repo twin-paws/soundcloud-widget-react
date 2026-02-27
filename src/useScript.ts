@@ -48,16 +48,27 @@ function loadScript(): Promise<void> {
   return scriptPromise;
 }
 
-export function useScript(): { loaded: boolean } {
+export function useScript(): { loaded: boolean; error: Error | null } {
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    let mounted = true;
+
     loadScript()
-      .then(() => setLoaded(true))
-      .catch((err) => console.error(err));
+      .then(() => {
+        if (mounted) setLoaded(true);
+      })
+      .catch((err) => {
+        if (mounted) setError(err instanceof Error ? err : new Error(String(err)));
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  return { loaded };
+  return { loaded, error };
 }
