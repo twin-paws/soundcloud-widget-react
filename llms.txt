@@ -1,46 +1,91 @@
 # soundcloud-widget-react
 
-React component library wrapping the SoundCloud HTML5 Widget API with full TypeScript support.
+The definitive React wrapper for the SoundCloud HTML5 Widget API — full TypeScript support, Promise-based getters, generic event bindings, SSR-safe, and a `useSCWidget` hook for reactive state.
 
 ## Package
 
 - npm: `soundcloud-widget-react`
-- Version: 1.0.8
+- Version: 2.0.0
 - License: MIT
 - Peer deps: react >= 17, react-dom >= 17
+- Zero runtime dependencies
 
-## Core Export
+## Core Exports
 
 ```tsx
-import { SCWidget } from "soundcloud-widget-react";
-import type { SCWidgetRef, SCWidgetProps, SCAudioEventPayload, SCSound } from "soundcloud-widget-react";
+import { SCWidget, useSCWidget, SCWidgetEvents } from "soundcloud-widget-react";
+import type {
+  SCWidgetRef, SCWidgetProps, SCWidgetParams, SCWidgetState,
+  SCAudioEventPayload, SCSound, SCWidgetInstance, SCWidgetEventMap
+} from "soundcloud-widget-react";
 ```
 
 ## SCWidget Props
 
-Required: `url: string` — SoundCloud track, playlist, or user URL.
+Required: `url: string`
 
-Optional display: `width`, `height`, `style`, `className`, `iframeId`
+Display: `width`, `height`, `style`, `className`, `iframeId`
 
-Optional player params: `autoPlay`, `color`, `buying`, `sharing`, `download`, `showArtwork`, `showPlaycount`, `showUser`, `startTrack`, `singleActive`, `showTeaser`
+iframe a11y/control: `title`, `loading` ("eager"|"lazy"), `allow` (default "autoplay"), `sandbox`, `referrerPolicy`, `hidden` (renders 1x1 invisible iframe, ignores layout props)
 
-Events: `onReady`, `onPlay`, `onPause`, `onFinish`, `onSeek`, `onPlayProgress`, `onLoadProgress`, `onError`, `onClickDownload`, `onClickBuy`, `onOpenSharePanel`
+Player params: `autoPlay`, `color`, `buying`, `sharing`, `download`, `showArtwork`, `showPlaycount`, `showUser`, `startTrack`, `singleActive`, `showTeaser`, `visual`, `liking`, `showComments`, `hideRelated`
+
+Named event props: `onReady(ctx: { widget: SCWidgetInstance })`, `onPlay(e)`, `onPause(e)`, `onFinish(e)`, `onSeek(e)`, `onPlayProgress(e)`, `onLoadProgress(e)`, `onError()`, `onClickDownload()`, `onClickBuy()`, `onOpenSharePanel()`
+
+Generic event map: `onEvent?: { [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void }` — additive with named props, both are called
 
 Audio event payload: `{ relativePosition: number, loadProgress: number, currentPosition: number }`
 
+## SCWidgetEvents Enum
+
+READY = "ready" | PLAY = "play" | PAUSE = "pause" | FINISH = "finish"
+SEEK = "seek" | PLAY_PROGRESS = "play_progress" | LOAD_PROGRESS = "load_progress"
+CLICK_BUY = "click_buy" | CLICK_DOWNLOAD = "click_download"
+OPEN_SHARE_PANEL = "open_share_panel" | ERROR = "error"
+
 ## Ref API (SCWidgetRef)
 
-Attach with `useRef<SCWidgetRef>()`. Methods: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-1)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`, `getVolume(cb)`, `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
+Attach with `useRef<SCWidgetRef>()`.
+
+Controls: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-1)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`
+
+Callback getters: `getVolume(cb)`, `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
+
+Promise getters (v2): `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsync()`, `getSoundsAsync()`, `getCurrentSoundAsync()`, `getCurrentSoundIndexAsync()`, `isPausedAsync()`
+
+## useSCWidget Hook
+
+Returns `{ ref, state, props, controls }`. Spread `props` onto `<SCWidget>` for zero-boilerplate event wiring.
+
+State: `{ isReady, isPlaying, positionMs, durationMs, sound: SCSound | null, soundIndex }`
+
+Controls: play, pause, toggle, seekTo, setVolume, next, prev, skip, load
+
+```tsx
+const { ref, state, props, controls } = useSCWidget();
+<SCWidget ref={ref} url="..." {...props} />
+<button onClick={controls.play}>{state.isPlaying ? "Pause" : "Play"}</button>
+```
 
 ## Next.js Integration
 
-Two options:
-1. Dynamic import with `ssr: false`
-2. Load SC API globally via `<Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js">` in root layout, then use `<SCWidget>` directly in `"use client"` components. Library detects existing `window.SC` and skips duplicate injection (v1.0.7+).
+Option A: dynamic(() => import("soundcloud-widget-react").then(m => m.SCWidget), { ssr: false })
+
+Option B: Load <Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js" /> in root layout. Library detects window.SC already present and skips duplicate injection. Use "use client" component with direct <SCWidget> import.
+
+CSP: frame-src https://w.soundcloud.com; script-src https://w.soundcloud.com;
 
 ## Key Behaviors
 
-- Script is loaded once (singleton promise), deduped across multiple instances
+- Script loaded once (singleton promise), deduped across multiple instances
 - Callbacks use stable refs — handlers update without re-binding the widget
-- URL/param changes trigger `widget.load()` — no iframe remount
-- Client-only: uses iframe + postMessage, not SSR-safe without dynamic import
+- URL/param changes trigger widget.load() — no iframe remount
+- onReady and onEvent[READY] are both called (additive)
+- Script error is surfaced via console.error and useScript's error state
+- hidden prop renders 1x1 invisible iframe for audio-only / controller-only patterns
+- Client-only: uses iframe + postMessage
+
+## Known Limitations
+
+- Instagram in-app browser blocks autoplay and play() not from user gesture — always call from click handler; show fallback UI
+- CSP must whitelist https://w.soundcloud.com for both frame-src and script-src
