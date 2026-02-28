@@ -56,6 +56,26 @@ function buildIframeSrc(url: string, params: SCWidgetParams): string {
   return `https://w.soundcloud.com/player/?${search.toString()}`;
 }
 
+/**
+ * Translate camelCase SCWidgetParams to the snake_case keys the SC Widget API
+ * expects when calling widget.load(). PARAM_MAP is the single source of truth
+ * for this mapping — same one used by buildIframeSrc for the initial iframe URL.
+ */
+function buildLoadParams(
+  params: SCWidgetParams,
+  callback?: () => void
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [prop, apiKey] of PARAM_MAP) {
+    const value = params[prop];
+    if (value !== undefined) {
+      out[apiKey] = value;
+    }
+  }
+  if (callback) out["callback"] = callback;
+  return out;
+}
+
 function extractParams(props: SCWidgetProps): SCWidgetParams {
   return {
     autoPlay: props.autoPlay,
@@ -244,10 +264,12 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       prevUrl.current = url;
       prevParams.current = params;
 
-      widgetRef.current.load(url, {
-        ...params,
-        callback: () => callbacksRef.current.onReady?.({ widget: widgetRef.current! }),
-      });
+      widgetRef.current.load(
+        url,
+        buildLoadParams(params, () =>
+          callbacksRef.current.onReady?.({ widget: widgetRef.current! })
+        )
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [url, params.autoPlay, params.color, params.buying, params.sharing,
         params.download, params.showArtwork, params.showPlaycount, params.showUser,
