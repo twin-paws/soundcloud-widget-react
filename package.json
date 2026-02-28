@@ -1,6 +1,6 @@
 {
   "name": "soundcloud-widget-react",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "React component for the SoundCloud HTML5 Widget API with full TypeScript support",
   "author": "twin-paws",
   "license": "MIT",

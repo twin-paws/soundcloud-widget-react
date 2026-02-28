@@ -257,7 +257,13 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
         };
       };
 
-      iframe.addEventListener("load", initWidget, { once: true });
+      // If the iframe already loaded (e.g. from cache on a fast remount),
+      // the load event will have already fired before this effect ran.
+      if (iframe.contentDocument?.readyState === "complete") {
+        initWidget();
+      } else {
+        iframe.addEventListener("load", initWidget, { once: true });
+      }
 
       return () => {
         iframe.removeEventListener("load", initWidget);
