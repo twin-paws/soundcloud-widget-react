@@ -172,77 +172,96 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       };
     });
 
-    // Initialize widget once script is loaded and iframe is mounted
+    // Initialize widget once the SC API script is loaded AND the iframe content
+    // has fully loaded. We must defer until iframe load because when the script is
+    // already cached (e.g. on a key-change remount), loadScript() resolves in a
+    // microtask and SC.Widget() would be called before the iframe has rendered —
+    // causing SC to fall back to default styles (orange color, show_teaser, etc.).
     useEffect(() => {
       if (!loaded || !iframeRef.current || initializedRef.current) return;
 
-      const widget = window.SC.Widget(iframeRef.current);
-      widgetRef.current = widget;
-      initializedRef.current = true;
+      const iframe = iframeRef.current;
+      let cleanupFn: (() => void) | undefined;
 
-      const handlers: Array<[string, (e?: SCAudioEventPayload) => void]> = [
-        [SCWidgetEvents.READY, () => {
-          callbacksRef.current.onReady?.({ widget });
-          callbacksRef.current.onEvent?.[SCWidgetEvents.READY]?.(undefined);
-        }],
-        [SCWidgetEvents.PLAY, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onPlay?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY]?.(payload);
-        }],
-        [SCWidgetEvents.PAUSE, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onPause?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.PAUSE]?.(payload);
-        }],
-        [SCWidgetEvents.FINISH, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onFinish?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.FINISH]?.(payload);
-        }],
-        [SCWidgetEvents.SEEK, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onSeek?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.SEEK]?.(payload);
-        }],
-        [SCWidgetEvents.PLAY_PROGRESS, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onPlayProgress?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY_PROGRESS]?.(payload);
-        }],
-        [SCWidgetEvents.LOAD_PROGRESS, (e) => {
-          const payload = e as SCAudioEventPayload;
-          callbacksRef.current.onLoadProgress?.(payload);
-          callbacksRef.current.onEvent?.[SCWidgetEvents.LOAD_PROGRESS]?.(payload);
-        }],
-        [SCWidgetEvents.ERROR, () => {
-          callbacksRef.current.onError?.();
-          callbacksRef.current.onEvent?.[SCWidgetEvents.ERROR]?.(undefined);
-        }],
-        [SCWidgetEvents.CLICK_DOWNLOAD, () => {
-          callbacksRef.current.onClickDownload?.();
-          callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_DOWNLOAD]?.(undefined);
-        }],
-        [SCWidgetEvents.CLICK_BUY, () => {
-          callbacksRef.current.onClickBuy?.();
-          callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_BUY]?.(undefined);
-        }],
-        [SCWidgetEvents.OPEN_SHARE_PANEL, () => {
-          callbacksRef.current.onOpenSharePanel?.();
-          callbacksRef.current.onEvent?.[SCWidgetEvents.OPEN_SHARE_PANEL]?.(undefined);
-        }],
-      ];
+      const initWidget = () => {
+        // Guard against unmount between iframe load and this callback
+        if (!iframeRef.current || initializedRef.current) return;
 
-      for (const [event, handler] of handlers) {
-        widget.bind(event, handler);
-      }
+        const widget = window.SC.Widget(iframeRef.current);
+        widgetRef.current = widget;
+        initializedRef.current = true;
+
+        const handlers: Array<[string, (e?: SCAudioEventPayload) => void]> = [
+          [SCWidgetEvents.READY, () => {
+            callbacksRef.current.onReady?.({ widget });
+            callbacksRef.current.onEvent?.[SCWidgetEvents.READY]?.(undefined);
+          }],
+          [SCWidgetEvents.PLAY, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onPlay?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY]?.(payload);
+          }],
+          [SCWidgetEvents.PAUSE, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onPause?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.PAUSE]?.(payload);
+          }],
+          [SCWidgetEvents.FINISH, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onFinish?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.FINISH]?.(payload);
+          }],
+          [SCWidgetEvents.SEEK, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onSeek?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.SEEK]?.(payload);
+          }],
+          [SCWidgetEvents.PLAY_PROGRESS, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onPlayProgress?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.PLAY_PROGRESS]?.(payload);
+          }],
+          [SCWidgetEvents.LOAD_PROGRESS, (e) => {
+            const payload = e as SCAudioEventPayload;
+            callbacksRef.current.onLoadProgress?.(payload);
+            callbacksRef.current.onEvent?.[SCWidgetEvents.LOAD_PROGRESS]?.(payload);
+          }],
+          [SCWidgetEvents.ERROR, () => {
+            callbacksRef.current.onError?.();
+            callbacksRef.current.onEvent?.[SCWidgetEvents.ERROR]?.(undefined);
+          }],
+          [SCWidgetEvents.CLICK_DOWNLOAD, () => {
+            callbacksRef.current.onClickDownload?.();
+            callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_DOWNLOAD]?.(undefined);
+          }],
+          [SCWidgetEvents.CLICK_BUY, () => {
+            callbacksRef.current.onClickBuy?.();
+            callbacksRef.current.onEvent?.[SCWidgetEvents.CLICK_BUY]?.(undefined);
+          }],
+          [SCWidgetEvents.OPEN_SHARE_PANEL, () => {
+            callbacksRef.current.onOpenSharePanel?.();
+            callbacksRef.current.onEvent?.[SCWidgetEvents.OPEN_SHARE_PANEL]?.(undefined);
+          }],
+        ];
+
+        for (const [event, handler] of handlers) {
+          widget.bind(event, handler);
+        }
+
+        cleanupFn = () => {
+          for (const [event] of handlers) {
+            widget.unbind(event);
+          }
+          widgetRef.current = null;
+          initializedRef.current = false;
+        };
+      };
+
+      iframe.addEventListener("load", initWidget, { once: true });
 
       return () => {
-        for (const [event] of handlers) {
-          widget.unbind(event);
-        }
-        widgetRef.current = null;
-        initializedRef.current = false;
+        iframe.removeEventListener("load", initWidget);
+        cleanupFn?.();
       };
     }, [loaded]);
 
