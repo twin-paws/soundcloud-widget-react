@@ -172,22 +172,28 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       };
     });
 
-    // Initialize widget once the SC API script is loaded AND the iframe content
-    // has fully loaded. We must defer until iframe load because when the script is
-    // already cached (e.g. on a key-change remount), loadScript() resolves in a
-    // microtask and SC.Widget() would be called before the iframe has rendered —
-    // causing SC to fall back to default styles (orange color, show_teaser, etc.).
+    // Initialize widget as soon as the SC API script is loaded and the iframe is in the DOM.
+    // Params are baked into the iframe src URL so SC reads them correctly regardless of
+    // when SC.Widget() is called. SC uses postMessage internally and emits READY when ready.
+    // NOTE: We intentionally do NOT wait for the iframe load event — for cross-origin iframes
+    // contentDocument is null so we can't check readyState, and the load event may have
+    // already fired by the time this effect runs (cached remounts). SC.Widget() handles
+    // its own readiness via the READY postMessage event.
     useEffect(() => {
       if (!loaded || !iframeRef.current || initializedRef.current) return;
 
-      const iframe = iframeRef.current;
       let cleanupFn: (() => void) | undefined;
 
       const initWidget = () => {
-        // Guard against unmount between iframe load and this callback
         if (!iframeRef.current || initializedRef.current) return;
 
-        const widget = window.SC.Widget(iframeRef.current);
+        let widget: ReturnType<typeof window.SC.Widget>;
+        try {
+          widget = window.SC.Widget(iframeRef.current);
+        } catch (err) {
+          console.error("[SCWidget] SC.Widget() threw — SC API not ready?", err);
+          return;
+        }
         widgetRef.current = widget;
         initializedRef.current = true;
 
@@ -257,17 +263,16 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
         };
       };
 
-      // If the iframe already loaded (e.g. from cache on a fast remount),
-      // the load event will have already fired before this effect ran.
-      if (iframe.contentDocument?.readyState === "complete") {
-        initWidget();
-      } else {
-        iframe.addEventListener("load", initWidget, { once: true });
-      }
+      initWidget();
 
       return () => {
-        iframe.removeEventListener("load", initWidget);
-        cleanupFn?.();
+        try {
+          cleanupFn?.();
+        } catch (err) {
+          console.warn("[SCWidget] cleanup error (SC API may have already cleaned up):", err);
+          widgetRef.current = null;
+          initializedRef.current = false;
+        }
       };
     }, [loaded]);
 
