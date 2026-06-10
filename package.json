@@ -21,6 +21,13 @@
   "files": [
     "dist"
   ],
+  "sideEffects": false,
+  "packageManager": "pnpm@10.23.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
