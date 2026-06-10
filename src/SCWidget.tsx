@@ -4,6 +4,7 @@ import React, {
   useId,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
 import { useScript } from "./useScript";
 import type {
@@ -172,6 +173,20 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       };
     });
 
+    // The iframe src is frozen at mount. Later url/param changes go through
+    // widget.load() only — updating the src attribute would navigate the
+    // iframe, so React would reload the player AND widget.load() would fire,
+    // loading the track twice and dropping the postMessage session.
+    const [initialSrc] = useState(() => buildIframeSrc(url, extractParams(props)));
+
+    // Latest url/params for the init effect, which runs only when `loaded`
+    // flips: if they changed between mount and script-ready, init must call
+    // widget.load() because the frozen src still points at the mount-time url.
+    const latestLoadRef = useRef({ url, params: extractParams(props) });
+    useEffect(() => {
+      latestLoadRef.current = { url, params: extractParams(props) };
+    });
+
     // Initialize widget as soon as the SC API script is loaded and the iframe is in the DOM.
     // Params are baked into the iframe src URL so SC reads them correctly regardless of
     // when SC.Widget() is called. SC uses postMessage internally and emits READY when ready.
@@ -254,6 +269,18 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
           widget.bind(event, handler);
         }
 
+        // If url/params changed between mount and script-ready, the frozen
+        // iframe src is stale — catch up through the widget API.
+        const latest = latestLoadRef.current;
+        if (buildIframeSrc(latest.url, latest.params) !== initialSrc) {
+          widget.load(
+            latest.url,
+            buildLoadParams(latest.params, () =>
+              callbacksRef.current.onReady?.({ widget })
+            )
+          );
+        }
+
         cleanupFn = () => {
           for (const [event] of handlers) {
             widget.unbind(event);
@@ -278,21 +305,16 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
 
     // Reload when url or params change (after initial mount)
     const isFirstRender = useRef(true);
-    const prevUrl = useRef(url);
-    const prevParams = useRef(params);
 
     useEffect(() => {
       if (isFirstRender.current) {
         isFirstRender.current = false;
-        prevUrl.current = url;
-        prevParams.current = params;
         return;
       }
 
+      // Not initialized yet: the init effect reads latestLoadRef and loads
+      // the current url/params itself when the script arrives.
       if (!widgetRef.current) return;
-
-      prevUrl.current = url;
-      prevParams.current = params;
 
       widgetRef.current.load(
         url,
@@ -377,7 +399,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       }),
     }));
 
-    const src = buildIframeSrc(url, extractParams(props));
+    const src = initialSrc;
     const allowAttr = allow ?? "autoplay";
 
     if (hidden) {

@@ -131,6 +131,31 @@ describe("url/param changes go through widget.load()", () => {
     expect(opts).not.toHaveProperty("showTeaser");
   });
 
+  it("does NOT rewrite the iframe src on url/param change (no iframe reload)", async () => {
+    const { container, rerender } = render(<SCWidget url={URL} color="ff5500" />);
+    await flush();
+    const iframe = container.querySelector("iframe")!;
+    const initialSrc = iframe.getAttribute("src");
+    rerender(<SCWidget url={`${URL}-2`} color="00a99d" />);
+    await flush();
+    expect(iframe.getAttribute("src")).toBe(initialSrc);
+    expect(lastWidget().widget.load).toHaveBeenCalled();
+  });
+
+  it("applies a url change that happens before the script is ready at init time", async () => {
+    // Both renders happen before the script-loaded state flushes.
+    const { rerender } = render(<SCWidget url={URL} />);
+    rerender(<SCWidget url={`${URL}-changed`} autoPlay={true} />);
+    await flush();
+    const mock = lastWidget();
+    await waitFor(() =>
+      expect(mock.widget.load).toHaveBeenCalledWith(
+        `${URL}-changed`,
+        expect.objectContaining({ auto_play: true })
+      )
+    );
+  });
+
   it("calls widget.load when only a player param changes", async () => {
     const { rerender } = render(<SCWidget url={URL} color="ff5500" />);
     await flush();
