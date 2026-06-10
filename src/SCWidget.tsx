@@ -1,12 +1,12 @@
 import React, {
   forwardRef,
   useEffect,
-  useId,
   useImperativeHandle,
   useRef,
   useState,
 } from "react";
 import { useScript } from "./useScript";
+import { useStableId } from "./useStableId";
 import type {
   SCAudioEventPayload,
   SCSound,
@@ -131,7 +131,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const widgetRef = useRef<SCWidgetInstance | null>(null);
     const initializedRef = useRef(false);
-    const generatedId = useId();
+    const generatedId = useStableId();
     const frameId = iframeId ?? `sc-widget-${generatedId}`;
 
     // Log script load errors
