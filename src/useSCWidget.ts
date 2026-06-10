@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import type { SCWidgetInstance, SCWidgetProps, SCWidgetRef, SCWidgetState } from "./types";
 
 interface UseSCWidgetResult {
-  ref: React.RefObject<SCWidgetRef | null>;
+  ref: React.RefObject<SCWidgetRef>;
   state: SCWidgetState;
   props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onPlayProgress">;
   controls: {
@@ -20,7 +20,7 @@ interface UseSCWidgetResult {
 }
 
 export function useSCWidget(): UseSCWidgetResult {
-  const ref = useRef<SCWidgetRef | null>(null);
+  const ref = useRef<SCWidgetRef>(null);
   const [state, setState] = useState<SCWidgetState>({
     isReady: false,
     isPlaying: false,
