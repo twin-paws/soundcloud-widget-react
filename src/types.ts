@@ -55,10 +55,12 @@ export interface SCWidgetInstance {
   pause(): void;
   toggle(): void;
   seekTo(milliseconds: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   setVolume(volume: number): void;
   next(): void;
   prev(): void;
   skip(soundIndex: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   getVolume(callback: (volume: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
   getPosition(callback: (position: number) => void): void;
@@ -87,11 +89,13 @@ export interface SCWidgetRef {
   pause(): void;
   toggle(): void;
   seekTo(milliseconds: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   setVolume(volume: number): void;
   next(): void;
   prev(): void;
   skip(soundIndex: number): void;
   load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
+  /** Volume in the Widget API's 0–100 range. */
   getVolume(callback: (volume: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
   getPosition(callback: (position: number) => void): void;

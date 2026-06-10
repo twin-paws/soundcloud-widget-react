@@ -11,15 +11,15 @@ The definitive TypeScript-native React wrapper for the SoundCloud HTML5 Widget A
 - Generic onEvent map — handle all events in one fully-typed object, additive with named props
 - Hidden iframe / controller-only mode — build custom audio UIs, no visible widget required
 - Accessible iframe attributes (title, loading, allow, sandbox, referrerPolicy)
-- SSR-safe — tested duplicate-script injection prevention, explicit Next.js patterns documented
+- SSR-safe — tested duplicate-script injection prevention, "use client" shipped in dist, explicit Next.js patterns documented
 - Actively maintained in 2026 (react-soundcloud-widget: last commit 2019, no TypeScript, no hooks)
 
 ## Package
 
 - npm: soundcloud-widget-react
-- Version: 2.0.0
+- Version: 2.1.0
 - License: MIT
-- Peer deps: react >= 17, react-dom >= 17
+- Peer deps: react >= 17, react-dom >= 17 (React 17: auto iframe id uses a counter fallback — pass iframeId explicitly if you SSR on 17)
 - Zero runtime dependencies
 
 ## Core Exports
@@ -34,19 +34,20 @@ import type {
 
 ## SCWidget Props Summary
 
-Required: `url: string`
+Required: `url: string` — a plain, UNENCODED SoundCloud track/playlist/user URL (the component does its own encoding; do not pass pre-encoded widget URLs)
 
 Display: `width`, `height`, `style`, `className`, `iframeId`
 
 iframe a11y/control: `title`, `loading` ("eager"|"lazy"), `allow` (default "autoplay"), `sandbox`, `referrerPolicy`, `hidden` (renders 1×1 invisible iframe, ignores layout props)
 
 Player params: `autoPlay`, `color`, `buying`, `sharing`, `download`, `showArtwork`, `showPlaycount`, `showUser`, `startTrack`, `singleActive`, `showTeaser`, `visual`, `liking`, `showComments`, `hideRelated`
+(Note: showTeaser/visual/liking/showComments/hideRelated are de-facto embed params used by SoundCloud's embed builder, not listed in the official Widget API docs.)
 
 Named event props: `onReady(ctx: { widget: SCWidgetInstance })`, `onPlay(e)`, `onPause(e)`, `onFinish(e)`, `onSeek(e)`, `onPlayProgress(e)`, `onLoadProgress(e)`, `onError()`, `onClickDownload()`, `onClickBuy()`, `onOpenSharePanel()`
 
 Generic event map: `onEvent?: { [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void }` — additive with named props, both are called
 
-Audio event payload: `{ relativePosition: number, loadProgress: number, currentPosition: number }`
+Audio event payload: `{ relativePosition: number (0–1), loadProgress: number (0–1), currentPosition: number (ms) }`
 
 ## SCWidgetEvents Enum (all 11 values)
 
@@ -57,21 +58,21 @@ OPEN_SHARE_PANEL = "open_share_panel" | ERROR = "error"
 
 ## SCWidgetRef API
 
-Attach with `useRef<SCWidgetRef>()`.
+Attach with `useRef<SCWidgetRef>(null)`.
 
-Controls: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-1)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`
+Controls: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-100)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`
 
-Callback getters: `getVolume(cb)`, `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
+Callback getters (callback fires exactly once): `getVolume(cb)` (0–100), `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
 
-Promise getters (v2): `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsync()`, `getSoundsAsync()`, `getCurrentSoundAsync()`, `getCurrentSoundIndexAsync()`, `isPausedAsync()`
+Promise getters (v2): `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsync()` (0–100), `getSoundsAsync()`, `getCurrentSoundAsync()`, `getCurrentSoundIndexAsync()`, `isPausedAsync()`
 
 ## useSCWidget Hook
 
-Returns `{ ref, state, props, controls }`. Spread `props` onto `<SCWidget>` for zero-boilerplate event wiring.
+Returns `{ ref, state, props, controls }`. Spread `props` onto `<SCWidget>` for zero-boilerplate event wiring. The hook occupies the named props onReady/onPlay/onPause/onFinish/onSeek/onPlayProgress — add your own listeners for those events via onEvent (additive).
 
-State shape: `{ isReady: boolean, isPlaying: boolean, positionMs: number, durationMs: number, sound: SCSound | null, soundIndex: number }`
+State shape: `{ isReady: boolean, isPlaying: boolean, positionMs: number, durationMs: number, sound: SCSound | null, soundIndex: number }` — positionMs updates on play_progress AND seek.
 
-Controls: play, pause, toggle, seekTo, setVolume, next, prev, skip, load — all stable useCallback refs
+Controls: play, pause, toggle, seekTo, setVolume (0–100), next, prev, skip, load — all stable useCallback refs
 
 ```tsx
 const { ref, state, props, controls } = useSCWidget();
@@ -82,28 +83,31 @@ const { ref, state, props, controls } = useSCWidget();
 
 ## Next.js Integration
 
+The dist files ship the "use client" directive — `import { SCWidget } from "soundcloud-widget-react"` works directly inside App Router trees.
+
 Option A (simplest): `dynamic(() => import("soundcloud-widget-react").then(m => m.SCWidget), { ssr: false })`
 
-Option B (recommended for persistent players): Load `<Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js" />` in root layout. Library detects `window.SC` already present and skips duplicate injection. Use "use client" component with direct `<SCWidget>` import.
+Option B (recommended for persistent players): Load `<Script strategy="beforeInteractive" src="https://w.soundcloud.com/player/api.js" />` in root layout. Library detects `window.SC` already present and skips duplicate injection.
 
 CSP: `frame-src https://w.soundcloud.com; script-src https://w.soundcloud.com;`
 
 ## Key Behaviors
 
 - Script loaded once (singleton promise), deduped across multiple widget instances on the same page
+- Script load failure (network/CSP/timeout) surfaced via console.error; the singleton resets so a later mount retries
 - Callbacks use stable refs — handlers update without re-binding the widget API
-- URL/param changes trigger widget.load() — no iframe remount, no flicker
+- The iframe src is frozen at mount; URL/param changes go through widget.load() ONLY — no iframe reload, no flicker (url/param changes before the script is ready are applied at init)
 - onReady and onEvent[READY] are both called (additive, not exclusive)
-- Script load error surfaced via console.error
 - hidden prop renders 1×1 invisible iframe (position:absolute, visibility:hidden, pointerEvents:none)
-- Client-only: uses iframe + postMessage; requires window
+- Rendering is SSR-safe (no window/document during render); the player initializes client-side via iframe + postMessage
 
 ## Known Limitations
 
 - Instagram in-app browser: blocks autoplay and play() not from user gesture — call play() from click handler only; show fallback UI before first interaction
 - CSP: must whitelist https://w.soundcloud.com for both frame-src and script-src
+- setVolume/getVolume use the Widget API's 0–100 range (not 0–1)
 
 ## Related Packages
 
-- soundcloud-api-ts (github.com/twin-paws/soundcloud-api-ts): TypeScript-first SoundCloud REST API client — tracks, users, playlists, OAuth
+- soundcloud-api-ts (github.com/twin-paws/soundcloud-api-ts): TypeScript-first SoundCloud REST API client — tracks, users, playlists, OAuth. Its getSoundCloudWidgetUrl() returns a PRE-ENCODED widget URL fragment for hand-built embeds — do not pass it to <SCWidget url>, which expects a plain unencoded URL.
 - soundcloud-api-ts-next (github.com/twin-paws/soundcloud-api-ts-next): Next.js integration: React hooks, secure API routes, OAuth PKCE, RSC helpers

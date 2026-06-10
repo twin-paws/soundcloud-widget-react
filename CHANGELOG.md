@@ -4,6 +4,62 @@ All notable changes to `soundcloud-widget-react` are documented here.
 
 ---
 
+## [2.1.0] — 2026-06-10
+
+Audit release — see `docs/audit-2026-06.md` for the full report. All changes are non-breaking.
+
+### Fixed
+- **Iframe reloaded on url/param changes** — the iframe `src` was recomputed every render, so changing `url` or any player param navigated the iframe to a fresh player *and* called `widget.load()`, loading the track twice. The src is now frozen at mount; changes go through `widget.load()` exclusively (as the docs always claimed). Url/param changes that land before the API script is ready are applied at widget init.
+- **Callback-style getters fired their callback twice** — `getVolume`/`getDuration`/`getPosition`/`getSounds`/`getCurrentSoundIndex`/`isPaused` invoked the callback immediately with a default (0/`[]`/`true`) and then again with the real value. Each now fires exactly once.
+- **React 17 crash** — the component used `useId` (React 18+) while `peerDependencies` allow `react >=17`. Now shimmed with a counter fallback on 17. Caveat: the fallback is not SSR-stable — pass `iframeId` explicitly if you server-render on React 17.
+- **Script loader could never retry after a poll timeout** — when a SoundCloud script tag existed but `window.SC` never appeared, the 10s timeout rejection was cached forever; every later widget mount failed. The singleton now resets on timeout (the error path already did).
+- **`useSCWidget().ref` type** — was `RefObject<SCWidgetRef | null>`, which fails to typecheck against `<SCWidget ref={...}>` under `@types/react` 18 without a cast. Now `RefObject<SCWidgetRef>`.
+
+### Added
+- **`"use client"` shipped in dist** — both ESM and CJS output now carry the directive, so `SCWidget` can be imported directly from Next.js App Router code.
+- **`useSCWidget` binds `onSeek`** — `state.positionMs` now updates when the user seeks while paused (previously only on the next `play_progress`).
+- **Test suite + CI** — vitest/jsdom suite covering script-loader idempotency, event bind/unbind symmetry (incl. StrictMode), snake_case `load()` translation, SSR render safety, and the fixes above; GitHub Actions CI on Node 22/24. The publish workflow now runs tests before publishing.
+- **LICENSE file** (the README badge previously pointed at a missing file).
+
+### Docs
+- `setVolume`/`getVolume` documented range corrected to the Widget API's **0–100** (was wrongly documented as 0–1; the demo already used 0–100).
+- `showTeaser`/`visual`/`liking`/`showComments`/`hideRelated` marked as de-facto embed params not in SoundCloud's official Widget API parameter list.
+- Clarified `url` must be a plain unencoded SoundCloud URL (not the pre-encoded output of `soundcloud-api-ts`'s `getSoundCloudWidgetUrl()`).
+- README de-duplicated (the "Demo" section appeared 12 times); stale `Version: 2.0.0` headers in `llms.txt`/`llms-full.txt` corrected; this changelog backfilled for 2.0.1–2.0.4.
+
+### CI / packaging
+- pnpm pinned via `packageManager` (`pnpm/action-setup` no longer uses `version: latest`); `sideEffects: false`; `.npmrc` and `dist/` untracked (both were gitignored but still committed).
+
+---
+
+## [2.0.4] — 2026-03-01
+
+### Fixed
+- **Call `SC.Widget()` immediately** instead of deferring to the iframe `load` event (reverts the 2.0.2/2.0.3 approach). For cross-origin iframes the load event may already have fired (cached remounts) and `contentDocument` is inaccessible, so deferring could leave the widget uninitialized. The SC API handles its own readiness via the READY postMessage event.
+
+---
+
+## [2.0.3] — 2026-02-28
+
+### Fixed
+- Initialize the widget immediately if the iframe is already loaded on remount (the 2.0.2 deferral left remounted widgets waiting for a `load` event that never re-fired).
+
+---
+
+## [2.0.2] — 2026-02-28
+
+### Fixed
+- Defer `SC.Widget()` init until the iframe `load` event (superseded by 2.0.4).
+
+---
+
+## [2.0.1] — 2026-02-28
+
+### Fixed
+- **`widget.load()` silently ignored all player params** — the Widget API's `load()` accepts only snake_case options (`auto_play`, `show_user`, …), but raw camelCase props were spread into the call, so every customization was dropped on second-and-later track loads. `buildLoadParams()` now translates through the same `PARAM_MAP` used for the initial iframe URL.
+
+---
+
 ## [2.0.0] — 2026-02-26
 
 ### Breaking Changes

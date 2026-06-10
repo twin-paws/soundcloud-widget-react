@@ -1,8 +1,11 @@
 # soundcloud-widget-react — Full Reference
 
 The definitive React wrapper for the SoundCloud HTML5 Widget API.
-Version: 2.0.0 | License: MIT | npm: soundcloud-widget-react
+Version: 2.1.0 | License: MIT | npm: soundcloud-widget-react
 Peer deps: react >= 17, react-dom >= 17 | Zero runtime dependencies
+Note: setVolume/getVolume use the Widget API's 0–100 range (not 0–1).
+React 17: the auto iframe id uses a counter fallback (no useId) — pass
+iframeId explicitly if you SSR on React 17.
 
 ---
 
@@ -66,10 +69,12 @@ export interface SCWidgetInstance {
   pause(): void;
   toggle(): void;
   seekTo(milliseconds: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   setVolume(volume: number): void;
   next(): void;
   prev(): void;
   skip(soundIndex: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   getVolume(callback: (volume: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
   getPosition(callback: (position: number) => void): void;
@@ -99,12 +104,13 @@ export interface SCWidgetRef {
   pause(): void;
   toggle(): void;
   seekTo(milliseconds: number): void;
+  /** Volume in the Widget API's 0–100 range. */
   setVolume(volume: number): void;
   next(): void;
   prev(): void;
   skip(soundIndex: number): void;
   load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
-  // Callback-style getters
+  // Callback-style getters (the callback fires exactly once)
   getVolume(callback: (volume: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
   getPosition(callback: (position: number) => void): void;
@@ -187,7 +193,7 @@ Returns: `{ loaded: boolean; error: Error | null }`
 Handles:
 - `window.SC` already present (beforeInteractive Next.js Script) — resolves immediately
 - Script tag in DOM but not yet executed — polls until `window.SC` appears (10s timeout)
-- Network/CSP errors — resets singleton, surfaces via error state
+- Network/CSP errors AND poll timeout — reset the singleton so a later mount can retry; surfaced via error state
 - Unmount before resolve — mounted flag prevents state updates on unmounted components
 
 ---
@@ -195,14 +201,22 @@ Handles:
 # src/SCWidget.tsx
 
 `forwardRef` component. Key behaviors:
-- Builds iframe src via URLSearchParams (no double-encoding)
-- Initializes `SC.Widget` once script loaded + iframe mounted (singleton init guard)
+- Builds iframe src via URLSearchParams (no double-encoding); `url` must be a plain
+  unencoded SoundCloud URL
+- The iframe src is FROZEN at mount — later url/param changes call `widget.load()`
+  only, so the iframe never reloads (changes that land before the script is ready
+  are applied at widget init)
+- Initializes `SC.Widget` once script loaded + iframe mounted (singleton init guard);
+  unbinds all events on unmount (StrictMode-safe)
 - Binds all 11 Widget API events; calls both named prop AND `onEvent[event]` (additive)
 - `onReady` passes `{ widget: SCWidgetInstance }` to handler
 - Stable callback refs — handlers update without re-binding the widget
-- URL/param changes call `widget.load()` — no iframe remount, no flicker
+- Callback-style getters call their callback exactly once (real value when the widget
+  exists, default 0/[]/true before init)
 - `hidden=true`: renders `position:absolute, 1x1px, visibility:hidden, pointerEvents:none`
 - `allow` defaults to `"autoplay"` if not provided
+- React 17 supported: useId is shimmed with a counter fallback (not SSR-stable on 17 —
+  pass `iframeId` if you SSR there)
 
 ---
 
@@ -211,15 +225,15 @@ Handles:
 Hook signature:
 ```ts
 function useSCWidget(): {
-  ref: React.RefObject<SCWidgetRef | null>;
+  ref: React.RefObject<SCWidgetRef>;
   state: SCWidgetState;
-  props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onPlayProgress">;
+  props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onSeek" | "onPlayProgress">;
   controls: {
     play(): void;
     pause(): void;
     toggle(): void;
     seekTo(ms: number): void;
-    setVolume(volume: number): void;
+    setVolume(volume: number): void; // 0–100
     next(): void;
     prev(): void;
     skip(index: number): void;
@@ -232,7 +246,10 @@ State updates:
 - `onReady`: fetches `durationMs`, `sound`, `soundIndex` via async getters; sets `isReady=true`
 - `onPlay`: `isPlaying=true`
 - `onPause` / `onFinish`: `isPlaying=false`
-- `onPlayProgress`: `positionMs=e.currentPosition`
+- `onSeek` / `onPlayProgress`: `positionMs=e.currentPosition`
+
+The hook occupies the named props it returns — add your own listeners for those
+events via `onEvent` (named props and `onEvent` are additive).
 
 All controls are stable `useCallback` refs — safe to use in dependency arrays.
 
@@ -281,7 +298,7 @@ export default function Player() {
       <button onClick={controls.pause}>Pause</button>
       <button onClick={controls.toggle}>Toggle</button>
       <button onClick={() => controls.seekTo(30_000)}>Seek to 0:30</button>
-      <button onClick={() => controls.setVolume(0.5)}>50% volume</button>
+      <button onClick={() => controls.setVolume(50)}>50% volume</button>
     </div>
   );
 }

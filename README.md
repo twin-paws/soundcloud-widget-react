@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/soundcloud-widget-react)](https://www.npmjs.com/package/soundcloud-widget-react)
 [![npm downloads](https://img.shields.io/npm/dw/soundcloud-widget-react)](https://www.npmjs.com/package/soundcloud-widget-react)
+[![CI](https://github.com/twin-paws/soundcloud-widget-react/actions/workflows/ci.yml/badge.svg)](https://github.com/twin-paws/soundcloud-widget-react/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/soundcloud-widget-react)](https://github.com/twin-paws/soundcloud-widget-react/blob/main/LICENSE)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/soundcloud-widget-react)](https://bundlephobia.com/package/soundcloud-widget-react)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
@@ -24,30 +25,19 @@ Or browse the [demo source](./demo) to see all features in action.
 
 ## Why This Package?
 
-The SoundCloud Widget API has been around for years, but most React wrappers for it were written before TypeScript was mainstream and before React hooks existed. The most popular alternative, [react-soundcloud-widget](https://github.com/troybetz/react-soundcloud-widget), has been effectively abandoned — no TypeScript, no hooks, no Promise-based getters, no SSR guidance. Developers reach for it because they find it first on npm, not because it's good.
+The SoundCloud Widget API has been around for years, but most React wrappers for it were written before TypeScript was mainstream and before React hooks existed. The most popular alternative, [react-soundcloud-widget](https://github.com/troybetz/react-soundcloud-widget), has been effectively abandoned — no TypeScript, no hooks, no Promise-based getters, no SSR guidance.
 
 `soundcloud-widget-react` is a ground-up TypeScript rewrite built for the way React is written today:
 
-- **Full type coverage** matching the official Widget API spec — events, params, payloads, all of it
+- **Full type coverage** for the Widget API — events, params, payloads, all of it
 - **Promise-based getters** — `getDurationAsync()`, `getPositionAsync()`, etc. — instead of callback hell
 - **`SCWidgetEvents` enum** so you never mistype an event name string
 - **`useSCWidget` hook** for reactive state (`isPlaying`, `positionMs`, `durationMs`, `sound`) with zero boilerplate
 - **SSR-safe** with explicit Next.js patterns and tested duplicate-script injection prevention
+- **`"use client"` directive shipped in the build** — import directly from Next.js App Router components
 - **Accessible iframe attributes** (`title`, `loading`, `allow`, `sandbox`, `referrerPolicy`) that older wrappers never exposed
 - **Hidden iframe / controller-only mode** for building fully custom audio UIs
 - **Zero runtime dependencies**
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -70,18 +60,6 @@ Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
-
----
-
 ## Install
 
 ```bash
@@ -94,17 +72,7 @@ yarn add soundcloud-widget-react
 
 Peer dependencies: `react` and `react-dom` >= 17.
 
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
+> **React 17 note:** the auto-generated iframe `id` falls back to a counter on React 17 (which has no `useId`). That fallback is not SSR-stable — if you server-render with React 17, pass an explicit `iframeId`. React 18+ has no such caveat.
 
 ---
 
@@ -127,17 +95,7 @@ export default function App() {
 }
 ```
 
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
+The `url` prop takes a plain SoundCloud track, playlist, or user URL (or an `api.soundcloud.com` resource URL). Pass it **unencoded** — the component URL-encodes it into the iframe `src` itself. Changing `url` or any player param later does **not** reload the iframe; the component routes changes through `widget.load()`.
 
 ---
 
@@ -145,7 +103,7 @@ Or browse the [demo source](./demo) to see all features in action.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `url` | `string` | **required** | SoundCloud track, playlist, or user URL |
+| `url` | `string` | **required** | SoundCloud track, playlist, or user URL (unencoded) |
 | `width` | `string \| number` | `"100%"` | iframe width |
 | `height` | `string \| number` | `166` | iframe height (ignored in `hidden` mode) |
 | `style` | `CSSProperties` | — | Inline styles (ignored in `hidden` mode) |
@@ -167,11 +125,11 @@ Or browse the [demo source](./demo) to see all features in action.
 | `showUser` | `boolean` | — | Show user info |
 | `startTrack` | `number` | — | Index of track to start on (playlists) |
 | `singleActive` | `boolean` | — | Pause other widgets when this one plays |
-| `showTeaser` | `boolean` | — | Show teaser |
-| `visual` | `boolean` | — | Enable visual (large artwork) mode |
-| `liking` | `boolean` | — | Show like button |
-| `showComments` | `boolean` | — | Show comments |
-| `hideRelated` | `boolean` | — | Hide related tracks |
+| `showTeaser` | `boolean` | — | Show teaser * |
+| `visual` | `boolean` | — | Enable visual (large artwork) mode * |
+| `liking` | `boolean` | — | Show like button * |
+| `showComments` | `boolean` | — | Show comments * |
+| `hideRelated` | `boolean` | — | Hide related tracks * |
 | `onReady` | `(ctx: { widget: SCWidgetInstance }) => void` | — | Fired when widget is ready; receives the raw widget instance |
 | `onPlay` | `(e: SCAudioEventPayload) => void` | — | Fired on play |
 | `onPause` | `(e: SCAudioEventPayload) => void` | — | Fired on pause |
@@ -185,6 +143,8 @@ Or browse the [demo source](./demo) to see all features in action.
 | `onOpenSharePanel` | `() => void` | — | Fired when share panel opens |
 | `onEvent` | `{ [K in SCWidgetEvents]?: (payload: SCWidgetEventMap[K]) => void }` | — | Generic per-event handlers (additive with named handlers) |
 
+\* `showTeaser`, `visual`, `liking`, `showComments`, and `hideRelated` are de-facto embed parameters used by SoundCloud's own embed builder; they are not listed in the official Widget API parameter docs, and SoundCloud may change them without notice.
+
 ### SCAudioEventPayload
 
 ```ts
@@ -194,18 +154,6 @@ interface SCAudioEventPayload {
   currentPosition: number;   // milliseconds
 }
 ```
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -243,7 +191,7 @@ export default function Player() {
 | `pause()` | Pause playback |
 | `toggle()` | Toggle play/pause |
 | `seekTo(ms: number)` | Seek to position in milliseconds |
-| `setVolume(volume: number)` | Set volume (0–1) |
+| `setVolume(volume: number)` | Set volume (0–100, per the Widget API) |
 | `next()` | Skip to next track (playlist) |
 | `prev()` | Go to previous track (playlist) |
 | `skip(index: number)` | Jump to track at index (playlist) |
@@ -255,7 +203,7 @@ export default function Player() {
 |--------|-------------|
 | `getDuration(cb)` | Get track duration in ms |
 | `getPosition(cb)` | Get current position in ms |
-| `getVolume(cb)` | Get current volume (0–1) |
+| `getVolume(cb)` | Get current volume (0–100) |
 | `getSounds(cb)` | Get all sounds in playlist |
 | `getCurrentSound(cb)` | Get currently playing sound object |
 | `getCurrentSoundIndex(cb)` | Get index of current sound |
@@ -267,23 +215,11 @@ export default function Player() {
 |--------|---------|-------------|
 | `getDurationAsync()` | `Promise<number>` | Track duration in ms |
 | `getPositionAsync()` | `Promise<number>` | Current position in ms |
-| `getVolumeAsync()` | `Promise<number>` | Current volume (0–1) |
+| `getVolumeAsync()` | `Promise<number>` | Current volume (0–100) |
 | `getSoundsAsync()` | `Promise<SCSound[]>` | All sounds in playlist |
 | `getCurrentSoundAsync()` | `Promise<SCSound>` | Current sound (rejects if none) |
 | `getCurrentSoundIndexAsync()` | `Promise<number>` | Index of current sound |
 | `isPausedAsync()` | `Promise<boolean>` | Whether playback is paused |
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -309,18 +245,6 @@ import { SCWidgetEvents } from "soundcloud-widget-react";
 
 ---
 
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
-
----
-
 ## Generic `onEvent` Binding
 
 `onEvent` lets you handle multiple events in one map, with full type inference per event. Named props (`onPlay`, `onPause`, …) and `onEvent` entries are called independently — use both at once:
@@ -338,18 +262,6 @@ import { SCWidget, SCWidgetEvents } from "soundcloud-widget-react";
   }}
 />
 ```
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -381,11 +293,13 @@ export default function Player() {
       <button onClick={controls.pause}>Pause</button>
       <button onClick={controls.toggle}>Toggle</button>
       <button onClick={() => controls.seekTo(30_000)}>Seek to 0:30</button>
-      <button onClick={() => controls.setVolume(0.5)}>50% volume</button>
+      <button onClick={() => controls.setVolume(50)}>50% volume</button>
     </div>
   );
 }
 ```
+
+The hook wires its own handlers through the named props (`onReady`, `onPlay`, `onPause`, `onFinish`, `onSeek`, `onPlayProgress`). If you need your own listeners on those events alongside the hook, register them via `onEvent` — named props and `onEvent` are additive.
 
 ### `SCWidgetState`
 
@@ -393,7 +307,7 @@ export default function Player() {
 interface SCWidgetState {
   isReady: boolean;       // true after onReady fires
   isPlaying: boolean;     // updated on play/pause/finish
-  positionMs: number;     // updated on play_progress
+  positionMs: number;     // updated on play_progress and seek
   durationMs: number;     // fetched on ready
   sound: SCSound | null;  // current track info, fetched on ready
   soundIndex: number;     // current track index in playlist
@@ -408,23 +322,11 @@ interface SCWidgetState {
 | `pause()` | Pause playback |
 | `toggle()` | Toggle play/pause |
 | `seekTo(ms)` | Seek to millisecond position |
-| `setVolume(v)` | Set volume (0–1) |
+| `setVolume(v)` | Set volume (0–100) |
 | `next()` | Skip to next track |
 | `prev()` | Go to previous track |
 | `skip(index)` | Jump to track index |
 | `load(url, options?)` | Load a new URL |
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
@@ -462,23 +364,11 @@ The `hidden` prop renders the iframe as a 1×1 invisible element. The `width`, `
 
 ---
 
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
-
----
-
 ## SSR / Next.js
 
-This component is **client-only** — it requires `window` and communicates via `postMessage`.
+Rendering is SSR-safe (no `window`/`document` access during render — covered by tests), and the published files carry the `"use client"` directive, so you can import `SCWidget` directly from App Router code. The player itself only initializes in the browser — it requires `window` and communicates via `postMessage`.
 
-### Option A — Dynamic import (simplest)
+### Option A — Dynamic import
 
 ```tsx
 import dynamic from "next/dynamic";
@@ -533,18 +423,6 @@ script-src https://w.soundcloud.com;
 
 ---
 
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
-
----
-
 ## Known Limitations
 
 **Instagram in-app browser** — The Instagram browser blocks `autoPlay` and prevents `play()` calls that aren't triggered directly by a user gesture. Show a visible play button as a fallback:
@@ -567,18 +445,6 @@ return (
 
 ---
 
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
-
----
-
 ## Related
 
 This package is part of the **twin-paws SoundCloud ecosystem**:
@@ -588,6 +454,8 @@ This package is part of the **twin-paws SoundCloud ecosystem**:
 | [soundcloud-api-ts](https://github.com/twin-paws/soundcloud-api-ts) | TypeScript-first SoundCloud REST API client — typed access to tracks, users, playlists, and OAuth |
 | [soundcloud-api-ts-next](https://github.com/twin-paws/soundcloud-api-ts-next) | Next.js integration: React hooks, secure API routes, OAuth PKCE, RSC helpers |
 | **soundcloud-widget-react** ← you are here | React component for the SoundCloud HTML5 Widget API — embed players and control playback programmatically |
+
+> **Note:** `soundcloud-api-ts`'s `getSoundCloudWidgetUrl()` returns a **pre-encoded** widget URL fragment for hand-building iframe embeds. Do **not** pass its output to `<SCWidget url>` — this component expects a plain, unencoded SoundCloud URL (e.g. `track.permalink_url`) and does its own encoding.
 
 **Common pattern** — combine all three in a Next.js app:
 
@@ -604,18 +472,6 @@ import { SCWidget } from "soundcloud-widget-react";
 import { useTrack } from "soundcloud-api-ts-next";
 const { data } = useTrack(trackId);
 ```
-
----
-
-## Demo
-
-Clone the repo and run the demo locally:
-
-```bash
-cd demo && pnpm install && pnpm dev
-```
-
-Or browse the [demo source](./demo) to see all features in action.
 
 ---
 
