@@ -23,12 +23,15 @@ function loadScript(): Promise<void> {
       const interval = setInterval(() => {
         if (window.SC) {
           clearInterval(interval);
+          clearTimeout(timeout);
           resolve();
         }
       }, 50);
-      // Safety timeout after 10s
-      setTimeout(() => {
+      // Safety timeout after 10s. Reset the singleton so a later mount can
+      // retry — otherwise every future widget fails forever.
+      const timeout = setTimeout(() => {
         clearInterval(interval);
+        scriptPromise = null;
         reject(new Error("Timed out waiting for SoundCloud Widget API"));
       }, 10_000);
       return;
