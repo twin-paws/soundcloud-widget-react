@@ -5,7 +5,7 @@ import type { SCWidgetInstance, SCWidgetProps, SCWidgetRef, SCWidgetState } from
 interface UseSCWidgetResult {
   ref: React.RefObject<SCWidgetRef>;
   state: SCWidgetState;
-  props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onPlayProgress">;
+  props: Pick<SCWidgetProps, "onReady" | "onPlay" | "onPause" | "onFinish" | "onSeek" | "onPlayProgress">;
   controls: {
     play(): void;
     pause(): void;
@@ -49,6 +49,10 @@ export function useSCWidget(): UseSCWidgetResult {
     setState((s) => ({ ...s, isPlaying: false }));
   }, []);
 
+  const onSeek = useCallback((e: { currentPosition: number }) => {
+    setState((s) => ({ ...s, positionMs: e.currentPosition }));
+  }, []);
+
   const onPlayProgress = useCallback((e: { currentPosition: number }) => {
     setState((s) => ({ ...s, positionMs: e.currentPosition }));
   }, []);
@@ -58,6 +62,7 @@ export function useSCWidget(): UseSCWidgetResult {
     onPlay,
     onPause,
     onFinish,
+    onSeek,
     onPlayProgress,
   };
 

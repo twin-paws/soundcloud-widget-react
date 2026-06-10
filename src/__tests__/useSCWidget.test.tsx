@@ -70,6 +70,18 @@ it("tracks isPlaying across play/pause/finish", async () => {
   expect(readState().isPlaying).toBe(false);
 });
 
+it("updates positionMs on SEEK (e.g. seeking while paused)", async () => {
+  const mock = await mountHarness();
+  await act(async () =>
+    mock.emit(SCWidgetEvents.SEEK, {
+      relativePosition: 0.5,
+      loadProgress: 1,
+      currentPosition: 60000,
+    })
+  );
+  expect(readState().positionMs).toBe(60000);
+});
+
 it("updates positionMs on PLAY_PROGRESS", async () => {
   const mock = await mountHarness();
   await act(async () =>
