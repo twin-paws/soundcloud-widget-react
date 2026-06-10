@@ -196,6 +196,33 @@ describe("imperative ref API", () => {
     expect(mock.widget.skip).toHaveBeenCalledWith(2);
   });
 
+  it("callback getters invoke the callback exactly once with the widget's value", async () => {
+    const ref = createRef<SCWidgetRef>();
+    render(<SCWidget ref={ref} url={URL} />);
+    await flush();
+    const volumeCb = vi.fn();
+    const durationCb = vi.fn();
+    const pausedCb = vi.fn();
+    ref.current!.getVolume(volumeCb);
+    ref.current!.getDuration(durationCb);
+    ref.current!.isPaused(pausedCb);
+    expect(volumeCb).toHaveBeenCalledTimes(1);
+    expect(volumeCb).toHaveBeenCalledWith(42);
+    expect(durationCb).toHaveBeenCalledTimes(1);
+    expect(durationCb).toHaveBeenCalledWith(123456);
+    expect(pausedCb).toHaveBeenCalledTimes(1);
+    expect(pausedCb).toHaveBeenCalledWith(true);
+  });
+
+  it("callback getters fall back to defaults exactly once before the widget exists", () => {
+    const ref = createRef<SCWidgetRef>();
+    render(<SCWidget ref={ref} url={URL} />);
+    const volumeCb = vi.fn();
+    ref.current!.getVolume(volumeCb);
+    expect(volumeCb).toHaveBeenCalledTimes(1);
+    expect(volumeCb).toHaveBeenCalledWith(0);
+  });
+
   it("resolves Promise getters with the widget's values", async () => {
     const ref = createRef<SCWidgetRef>();
     render(<SCWidget ref={ref} url={URL} />);

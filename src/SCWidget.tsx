@@ -316,13 +316,16 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       prev: () => widgetRef.current?.prev(),
       skip: (idx) => widgetRef.current?.skip(idx),
       load: (u, opts) => widgetRef.current?.load(u, opts),
-      getVolume: (cb) => widgetRef.current?.getVolume(cb) ?? cb(0),
-      getDuration: (cb) => widgetRef.current?.getDuration(cb) ?? cb(0),
-      getPosition: (cb) => widgetRef.current?.getPosition(cb) ?? cb(0),
-      getSounds: (cb) => widgetRef.current?.getSounds(cb) ?? cb([]),
+      // Each getter must call cb exactly once: either via the widget, or with
+      // a default when the widget doesn't exist yet. (`widget?.get(cb) ?? cb(0)`
+      // would call cb twice — the widget methods return void/undefined.)
+      getVolume: (cb) => { if (widgetRef.current) widgetRef.current.getVolume(cb); else cb(0); },
+      getDuration: (cb) => { if (widgetRef.current) widgetRef.current.getDuration(cb); else cb(0); },
+      getPosition: (cb) => { if (widgetRef.current) widgetRef.current.getPosition(cb); else cb(0); },
+      getSounds: (cb) => { if (widgetRef.current) widgetRef.current.getSounds(cb); else cb([]); },
       getCurrentSound: (cb) => widgetRef.current?.getCurrentSound(cb),
-      getCurrentSoundIndex: (cb) => widgetRef.current?.getCurrentSoundIndex(cb) ?? cb(0),
-      isPaused: (cb) => widgetRef.current?.isPaused(cb) ?? cb(true),
+      getCurrentSoundIndex: (cb) => { if (widgetRef.current) widgetRef.current.getCurrentSoundIndex(cb); else cb(0); },
+      isPaused: (cb) => { if (widgetRef.current) widgetRef.current.isPaused(cb); else cb(true); },
       getDurationAsync: () => new Promise<number>((res) => {
         if (widgetRef.current) {
           widgetRef.current.getDuration(res);
