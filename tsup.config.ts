@@ -8,7 +8,8 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: ["react", "react-dom"],
-  treeshake: true,
+  // No rollup treeshake pass: it drops the banner directive, and consumer-side
+  // tree-shaking is handled by sideEffects:false in package.json.
   banner: {
     js: '"use client";',
   },
