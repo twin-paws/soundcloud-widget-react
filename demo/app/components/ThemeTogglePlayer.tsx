@@ -30,7 +30,7 @@ export default function ThemeTogglePlayer() {
         </button>
       </div>
       <p className="text-sm mb-4" style={{ color: mutedColor }}>
-        The <code className="px-1 rounded" style={{ background: bg }}>color</code> prop updates live — widget re-renders with new theme.
+        The <code className="px-1 rounded" style={{ background: bg }}>color</code> prop updates live — routed through <code className="px-1 rounded" style={{ background: bg }}>widget.load()</code>, no iframe remount.
       </p>
 
       <SCWidget

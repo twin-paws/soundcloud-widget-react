@@ -19,7 +19,7 @@ export default function Home() {
               className="px-2 py-0.5 rounded text-xs font-bold"
               style={{ background: "#00a99d22", color: "#00a99d", border: "1px solid #00a99d44" }}
             >
-              v2.0.0
+              v2.2.0
             </span>
           </div>
           <p style={{ color: "#888" }} className="text-sm">

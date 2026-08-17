@@ -1,8 +1,7 @@
 "use client";
 
-import type { RefObject } from "react";
 import { SCWidget, useSCWidget } from "soundcloud-widget-react";
-import type { SCSound, SCWidgetRef } from "soundcloud-widget-react";
+import type { SCSound } from "soundcloud-widget-react";
 import { useEffect, useState } from "react";
 
 export default function PlaylistPlayer() {
@@ -42,7 +41,7 @@ export default function PlaylistPlayer() {
       </p>
 
       <SCWidget
-        ref={ref as RefObject<SCWidgetRef>}
+        ref={ref}
         url="https://soundcloud.com/soundcloud-playlists/sets/weekly-toptracks-us"
         width="100%"
         height={120}

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "soundcloud-widget-react — Demo",
-  description: "Live demo of soundcloud-widget-react v2.0.0 features",
+  description: "Live demo of soundcloud-widget-react v2.2.0 features",
 };
 
 export default function RootLayout({

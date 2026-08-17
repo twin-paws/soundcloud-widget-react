@@ -11,11 +11,12 @@ import type {
   SCAudioEventPayload,
   SCSound,
   SCWidgetInstance,
-  SCWidgetParams,
   SCWidgetProps,
   SCWidgetRef,
 } from "./types";
 import { SCWidgetEvents } from "./types";
+import { resolveWidgetResource } from "./embed";
+import { buildIframeSrc, buildLoadParams, extractParams } from "./params";
 
 declare global {
   interface Window {
@@ -25,75 +26,29 @@ declare global {
   }
 }
 
-const PARAM_MAP: Array<[keyof SCWidgetParams, string]> = [
-  ["autoPlay", "auto_play"],
-  ["color", "color"],
-  ["buying", "buying"],
-  ["sharing", "sharing"],
-  ["download", "download"],
-  ["showArtwork", "show_artwork"],
-  ["showPlaycount", "show_playcount"],
-  ["showUser", "show_user"],
-  ["startTrack", "start_track"],
-  ["singleActive", "single_active"],
-  ["showTeaser", "show_teaser"],
-  ["visual", "visual"],
-  ["liking", "liking"],
-  ["showComments", "show_comments"],
-  ["hideRelated", "hide_related"],
-];
-
-function buildIframeSrc(url: string, params: SCWidgetParams): string {
-  const search = new URLSearchParams();
-  search.set("url", url);
-
-  for (const [prop, urlKey] of PARAM_MAP) {
-    const value = params[prop];
-    if (value !== undefined) {
-      search.set(urlKey, String(value));
-    }
-  }
-
-  return `https://w.soundcloud.com/player/?${search.toString()}`;
-}
-
-/**
- * Translate camelCase SCWidgetParams to the snake_case keys the SC Widget API
- * expects when calling widget.load(). PARAM_MAP is the single source of truth
- * for this mapping — same one used by buildIframeSrc for the initial iframe URL.
- */
-function buildLoadParams(
-  params: SCWidgetParams,
-  callback?: () => void
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [prop, apiKey] of PARAM_MAP) {
-    const value = params[prop];
-    if (value !== undefined) {
-      out[apiKey] = value;
-    }
-  }
-  if (callback) out["callback"] = callback;
-  return out;
-}
-
-function extractParams(props: SCWidgetProps): SCWidgetParams {
+/** Public widget: `load()` accepts camelCase params (raw SC API is snake_case). */
+function adaptWidget(widget: SCWidgetInstance): SCWidgetInstance {
   return {
-    autoPlay: props.autoPlay,
-    color: props.color,
-    buying: props.buying,
-    sharing: props.sharing,
-    download: props.download,
-    showArtwork: props.showArtwork,
-    showPlaycount: props.showPlaycount,
-    showUser: props.showUser,
-    startTrack: props.startTrack,
-    singleActive: props.singleActive,
-    showTeaser: props.showTeaser,
-    visual: props.visual,
-    liking: props.liking,
-    showComments: props.showComments,
-    hideRelated: props.hideRelated,
+    bind: (eventName, listener) => widget.bind(eventName, listener),
+    unbind: (eventName) => widget.unbind(eventName),
+    load: (url, options) => {
+      widget.load(url, buildLoadParams(options, options?.callback) as Parameters<SCWidgetInstance["load"]>[1]);
+    },
+    play: () => widget.play(),
+    pause: () => widget.pause(),
+    toggle: () => widget.toggle(),
+    seekTo: (ms) => widget.seekTo(ms),
+    setVolume: (vol) => widget.setVolume(vol),
+    next: () => widget.next(),
+    prev: () => widget.prev(),
+    skip: (idx) => widget.skip(idx),
+    getVolume: (cb) => widget.getVolume(cb),
+    getDuration: (cb) => widget.getDuration(cb),
+    getPosition: (cb) => widget.getPosition(cb),
+    getSounds: (cb) => widget.getSounds(cb),
+    getCurrentSound: (cb) => widget.getCurrentSound(cb),
+    getCurrentSoundIndex: (cb) => widget.getCurrentSoundIndex(cb),
+    isPaused: (cb) => widget.isPaused(cb),
   };
 }
 
@@ -101,6 +56,8 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
   function SCWidget(props, ref) {
     const {
       url,
+      trackId,
+      playlistId,
       width = "100%",
       height = 166,
       style,
@@ -177,14 +134,26 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
     // widget.load() only — updating the src attribute would navigate the
     // iframe, so React would reload the player AND widget.load() would fire,
     // loading the track twice and dropping the postMessage session.
-    const [initialSrc] = useState(() => buildIframeSrc(url, extractParams(props)));
+    const resourceUrl = resolveWidgetResource({ url, trackId, playlistId });
+    const hasSource = Boolean(resourceUrl);
+
+    // Frozen at first real source. Empty first render waits one tick rather
+    // than throwing (`<SCWidget trackId={track?.id} />` while data loads).
+    const [initialSrc, setInitialSrc] = useState(() =>
+      resourceUrl ? buildIframeSrc(resourceUrl, extractParams(props)) : "",
+    );
+    useEffect(() => {
+      if (!initialSrc && resourceUrl) {
+        setInitialSrc(buildIframeSrc(resourceUrl, extractParams(props)));
+      }
+    }, [initialSrc, resourceUrl]); // props read from the render that set resourceUrl
 
     // Latest url/params for the init effect, which runs only when `loaded`
     // flips: if they changed between mount and script-ready, init must call
     // widget.load() because the frozen src still points at the mount-time url.
-    const latestLoadRef = useRef({ url, params: extractParams(props) });
+    const latestLoadRef = useRef({ url: resourceUrl, params: extractParams(props) });
     useEffect(() => {
-      latestLoadRef.current = { url, params: extractParams(props) };
+      latestLoadRef.current = { url: resourceUrl, params: extractParams(props) };
     });
 
     // Initialize widget as soon as the SC API script is loaded and the iframe is in the DOM.
@@ -195,20 +164,29 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
     // already fired by the time this effect runs (cached remounts). SC.Widget() handles
     // its own readiness via the READY postMessage event.
     useEffect(() => {
-      if (!loaded || !iframeRef.current || initializedRef.current) return;
+      if (!loaded || !hasSource || !iframeRef.current || initializedRef.current) return;
 
       let cleanupFn: (() => void) | undefined;
+      let cancelled = false;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      let attempts = 0;
 
       const initWidget = () => {
-        if (!iframeRef.current || initializedRef.current) return;
+        if (cancelled || !iframeRef.current || initializedRef.current) return;
 
-        let widget: ReturnType<typeof window.SC.Widget>;
+        let raw: ReturnType<typeof window.SC.Widget>;
         try {
-          widget = window.SC.Widget(iframeRef.current);
+          raw = window.SC.Widget(iframeRef.current);
         } catch (err) {
+          attempts += 1;
+          if (attempts < 10) {
+            retryTimer = setTimeout(initWidget, 50);
+            return;
+          }
           console.error("[SCWidget] SC.Widget() threw — SC API not ready?", err);
           return;
         }
+        const widget = adaptWidget(raw);
         widgetRef.current = widget;
         initializedRef.current = true;
 
@@ -272,13 +250,9 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
         // If url/params changed between mount and script-ready, the frozen
         // iframe src is stale — catch up through the widget API.
         const latest = latestLoadRef.current;
-        if (buildIframeSrc(latest.url, latest.params) !== initialSrc) {
-          widget.load(
-            latest.url,
-            buildLoadParams(latest.params, () =>
-              callbacksRef.current.onReady?.({ widget })
-            )
-          );
+        if (latest.url && buildIframeSrc(latest.url, latest.params) !== initialSrc) {
+          // READY (not load callback) fires onReady — avoids a double call.
+          widget.load(latest.url, latest.params);
         }
 
         cleanupFn = () => {
@@ -293,6 +267,8 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       initWidget();
 
       return () => {
+        cancelled = true;
+        if (retryTimer) clearTimeout(retryTimer);
         try {
           cleanupFn?.();
         } catch (err) {
@@ -301,7 +277,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
           initializedRef.current = false;
         }
       };
-    }, [loaded]);
+    }, [loaded, hasSource]);
 
     // Reload when url or params change (after initial mount)
     const isFirstRender = useRef(true);
@@ -314,16 +290,11 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
 
       // Not initialized yet: the init effect reads latestLoadRef and loads
       // the current url/params itself when the script arrives.
-      if (!widgetRef.current) return;
+      if (!widgetRef.current || !resourceUrl) return;
 
-      widgetRef.current.load(
-        url,
-        buildLoadParams(params, () =>
-          callbacksRef.current.onReady?.({ widget: widgetRef.current! })
-        )
-      );
+      widgetRef.current.load(resourceUrl, params);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [url, params.autoPlay, params.color, params.buying, params.sharing,
+    }, [resourceUrl, params.autoPlay, params.color, params.buying, params.sharing,
         params.download, params.showArtwork, params.showPlaycount, params.showUser,
         params.startTrack, params.singleActive, params.showTeaser,
         params.visual, params.liking, params.showComments, params.hideRelated]);
@@ -337,7 +308,7 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
       next: () => widgetRef.current?.next(),
       prev: () => widgetRef.current?.prev(),
       skip: (idx) => widgetRef.current?.skip(idx),
-      load: (u, opts) => widgetRef.current?.load(u, opts),
+      load: (u, opts) => widgetRef.current?.load(u, opts), // adaptWidget translates camelCase
       // Each getter must call cb exactly once: either via the widget, or with
       // a default when the widget doesn't exist yet. (`widget?.get(cb) ?? cb(0)`
       // would call cb twice — the widget methods return void/undefined.)
@@ -401,6 +372,10 @@ export const SCWidget = forwardRef<SCWidgetRef, SCWidgetProps>(
 
     const src = initialSrc;
     const allowAttr = allow ?? "autoplay";
+
+    if (!initialSrc) {
+      return null;
+    }
 
     if (hidden) {
       return (

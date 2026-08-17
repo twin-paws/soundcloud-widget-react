@@ -1,7 +1,7 @@
 # soundcloud-widget-react — Full Reference
 
 The definitive React wrapper for the SoundCloud HTML5 Widget API.
-Version: 2.1.0 | License: MIT | npm: soundcloud-widget-react
+Version: 2.2.0 | License: MIT | npm: soundcloud-widget-react
 Peer deps: react >= 17, react-dom >= 17 | Zero runtime dependencies
 Note: setVolume/getVolume use the Widget API's 0–100 range (not 0–1).
 React 17: the auto iframe id uses a counter fallback (no useId) — pass
@@ -64,7 +64,7 @@ export interface SCSound {
 export interface SCWidgetInstance {
   bind(eventName: string, listener: (e?: SCAudioEventPayload) => void): void;
   unbind(eventName: string): void;
-  load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
+  load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void; // camelCase translated
   play(): void;
   pause(): void;
   toggle(): void;
@@ -110,7 +110,7 @@ export interface SCWidgetRef {
   prev(): void;
   skip(soundIndex: number): void;
   load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
-  // Callback-style getters (the callback fires exactly once)
+  // Callback-style getters (exactly once; getCurrentSound does not fire before init)
   getVolume(callback: (volume: number) => void): void;
   getDuration(callback: (duration: number) => void): void;
   getPosition(callback: (position: number) => void): void;
@@ -129,7 +129,9 @@ export interface SCWidgetRef {
 }
 
 export interface SCWidgetProps extends SCWidgetParams {
-  url: string;
+  url?: string;                // permalink, API resource, player src, or getSoundCloudWidgetUrl() fragment
+  trackId?: string | number;   // preferred — id or soundcloud:tracks:{id} URN
+  playlistId?: string | number; // id or soundcloud:playlists:{id} URN
   width?: string | number;
   height?: string | number;
   style?: CSSProperties;
@@ -177,6 +179,11 @@ export { SCWidget } from "./SCWidget";
 export { SCWidget as default } from "./SCWidget";
 export { useSCWidget } from "./useSCWidget";
 export { SCWidgetEvents } from "./types";
+export {
+  getOEmbed, iframeSrcFromOEmbedHtml, resolveWidgetResource,
+  trackResourceUrl, playlistResourceUrl, normalizeWidgetUrl, embedId,
+} from "./embed";
+export type { SoundCloudOEmbed, OEmbedOptions, WidgetSource } from "./embed";
 export type {
   SCWidgetRef, SCWidgetProps, SCWidgetParams, SCAudioEventPayload,
   SCSound, SCWidgetInstance, SCWidgetState, SCWidgetEventMap,
@@ -193,7 +200,7 @@ Returns: `{ loaded: boolean; error: Error | null }`
 Handles:
 - `window.SC` already present (beforeInteractive Next.js Script) — resolves immediately
 - Script tag in DOM but not yet executed — polls until `window.SC` appears (10s timeout)
-- Network/CSP errors AND poll timeout — reset the singleton so a later mount can retry; surfaced via error state
+- Network/CSP errors AND 10s timeout (first inject and existing-tag poll) — reset the singleton so a later mount can retry; surfaced via error state
 - Unmount before resolve — mounted flag prevents state updates on unmounted components
 
 ---
@@ -201,18 +208,23 @@ Handles:
 # src/SCWidget.tsx
 
 `forwardRef` component. Key behaviors:
-- Builds iframe src via URLSearchParams (no double-encoding); `url` must be a plain
-  unencoded SoundCloud URL
+- Builds iframe src via URLSearchParams (no double-encoding). Prefer `trackId`
+  (numeric or `soundcloud:tracks:{id}` URN). `url` may be a permalink, API
+  resource, pre-encoded `getSoundCloudWidgetUrl()` fragment, or a full player src.
 - The iframe src is FROZEN at mount — later url/param changes call `widget.load()`
   only, so the iframe never reloads (changes that land before the script is ready
   are applied at widget init)
 - Initializes `SC.Widget` once script loaded + iframe mounted (singleton init guard);
   unbinds all events on unmount (StrictMode-safe)
 - Binds all 11 Widget API events; calls both named prop AND `onEvent[event]` (additive)
-- `onReady` passes `{ widget: SCWidgetInstance }` to handler
+- `onReady` passes `{ widget }` — an adapted instance whose `load()` accepts camelCase
 - Stable callback refs — handlers update without re-binding the widget
+- `ref.load` / `widget.load` (from onReady) translate camelCase SCWidgetParams
+  to official snake_case; already-snake_case keys pass through
 - Callback-style getters call their callback exactly once (real value when the widget
-  exists, default 0/[]/true before init)
+  exists, default 0/[]/true before init). `getCurrentSound` does not fire before init.
+- Missing source: render `null` (no throw). First real source freezes the iframe src.
+- `SC.Widget()` throw retries a few times
 - `hidden=true`: renders `position:absolute, 1x1px, visibility:hidden, pointerEvents:none`
 - `allow` defaults to `"autoplay"` if not provided
 - React 17 supported: useId is shimmed with a counter fallback (not SSR-stable on 17 —
@@ -244,7 +256,7 @@ function useSCWidget(): {
 
 State updates:
 - `onReady`: fetches `durationMs`, `sound`, `soundIndex` via async getters; sets `isReady=true`
-- `onPlay`: `isPlaying=true`
+- `onPlay`: `isPlaying=true`; also refreshes `sound` / `durationMs` / `soundIndex` (playlist next/prev)
 - `onPause` / `onFinish`: `isPlaying=false`
 - `onSeek` / `onPlayProgress`: `positionMs=e.currentPosition`
 
@@ -252,6 +264,22 @@ The hook occupies the named props it returns — add your own listeners for thos
 events via `onEvent` (named props and `onEvent` are additive).
 
 All controls are stable `useCallback` refs — safe to use in dependency arrays.
+
+---
+
+# src/embed.ts
+
+```ts
+function trackResourceUrl(trackId: string | number): string
+function playlistResourceUrl(playlistId: string | number): string
+function embedId(id: string | number): string  // strips soundcloud:tracks: / soundcloud:playlists:
+function normalizeWidgetUrl(url: string): string
+function resolveWidgetResource(source: { url?, trackId?, playlistId? }): string | null
+function getOEmbed(url: string, options?: OEmbedOptions, fetchImpl?): Promise<SoundCloudOEmbed>
+function iframeSrcFromOEmbedHtml(html: string): string | undefined
+```
+
+`resolveWidgetResource` returns `null` when nothing is set. Prefer `trackId` over a permalink.
 
 ---
 
@@ -265,7 +293,7 @@ import { SCWidget } from "soundcloud-widget-react";
 export default function App() {
   return (
     <SCWidget
-      url="https://soundcloud.com/artist/track"
+      trackId={308946187}
       autoPlay={false}
       showArtwork={true}
       onReady={({ widget }) => console.log("Widget ready", widget)}
@@ -286,7 +314,7 @@ export default function Player() {
 
   return (
     <div>
-      <SCWidget ref={ref} url="https://soundcloud.com/artist/track" {...props} />
+      <SCWidget ref={ref} trackId={308946187} {...props} />
 
       <p>
         {state.isPlaying ? "Playing" : "Paused"} —{" "}
@@ -310,7 +338,7 @@ export default function Player() {
 import { SCWidget, SCWidgetEvents } from "soundcloud-widget-react";
 
 <SCWidget
-  url="https://soundcloud.com/artist/track"
+  trackId={308946187}
   onEvent={{
     [SCWidgetEvents.READY]: () => console.log("ready"),
     [SCWidgetEvents.PLAY]: (e) => console.log("play at", e.currentPosition),
@@ -330,7 +358,7 @@ export default function InvisiblePlayer() {
 
   return (
     <div>
-      <SCWidget ref={ref} url="https://soundcloud.com/artist/track" hidden autoPlay {...props} />
+      <SCWidget ref={ref} trackId={308946187} hidden autoPlay {...props} />
       <button onClick={controls.toggle}>{state.isPlaying ? "Pause" : "Play"}</button>
       <span>{Math.round(state.positionMs / 1000)}s</span>
     </div>
@@ -356,7 +384,7 @@ export default function Player() {
 
   return (
     <>
-      <SCWidget ref={playerRef} url="https://soundcloud.com/artist/track" />
+      <SCWidget ref={playerRef} trackId={308946187} />
       <button onClick={logInfo}>Log Info</button>
     </>
   );
@@ -374,7 +402,7 @@ const SCWidget = dynamic(
 );
 
 export default function Page() {
-  return <SCWidget url="https://soundcloud.com/artist/track" />;
+  return <SCWidget trackId={308946187} />;
 }
 ```
 
@@ -404,8 +432,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 "use client";
 import { SCWidget } from "soundcloud-widget-react";
 
-export function PlayerBar({ url }: { url: string }) {
-  return <SCWidget url={url} height={166} width="100%" autoPlay />;
+export function PlayerBar({ trackId }: { trackId: number }) {
+  return <SCWidget trackId={trackId} height={166} width="100%" autoPlay />;
 }
 ```
 
@@ -439,9 +467,23 @@ NEW props: `onEvent`, `title`, `loading`, `allow`, `sandbox`, `referrerPolicy`, 
 
 NEW ref methods: `*Async()` Promise variants for all getters
 
+# 2.2.0
+
+NEW props: `trackId`, `playlistId` (id or URN). `url` optional.
+
+NEW exports: `getOEmbed`, `resolveWidgetResource`, `trackResourceUrl`, `playlistResourceUrl`, `normalizeWidgetUrl`, `embedId`, `iframeSrcFromOEmbedHtml`
+
+`load()` (ref, hook controls, onReady widget) translates camelCase params. Missing source renders nothing.
+
 ---
 
 # Known Limitations
 
 - Instagram in-app browser: blocks autoplay, play() must be from user gesture. Show fallback button.
 - CSP: add `frame-src https://w.soundcloud.com` and `script-src https://w.soundcloud.com`
+- Volume is 0–100 (not 0–1)
+
+# Related
+
+- soundcloud-api-ts — pass `track.id` or `track.urn` to `trackId`. `getSoundCloudWidgetUrl()` fragments are decoded if passed as `url`.
+- soundcloud-api-ts-next — Next.js hooks + route handlers.

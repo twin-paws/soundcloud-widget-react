@@ -38,6 +38,7 @@ The SoundCloud Widget API has been around for years, but most React wrappers for
 - **Accessible iframe attributes** (`title`, `loading`, `allow`, `sandbox`, `referrerPolicy`) that older wrappers never exposed
 - **Hidden iframe / controller-only mode** for building fully custom audio UIs
 - **Zero runtime dependencies**
+- **LLM-friendly** — ships `llms.txt`, `llms-full.txt`, and `AGENTS.md`
 
 ---
 
@@ -84,7 +85,7 @@ import { SCWidget } from "soundcloud-widget-react";
 export default function App() {
   return (
     <SCWidget
-      url="https://soundcloud.com/artist/track"
+      trackId={308946187}
       autoPlay={false}
       showArtwork={true}
       onReady={({ widget }) => console.log("Widget ready", widget)}
@@ -95,7 +96,9 @@ export default function App() {
 }
 ```
 
-The `url` prop takes a plain SoundCloud track, playlist, or user URL (or an `api.soundcloud.com` resource URL). Pass it **unencoded** — the component URL-encodes it into the iframe `src` itself. Changing `url` or any player param later does **not** reload the iframe; the component routes changes through `widget.load()`.
+Prefer **`trackId` / `playlistId`** from `soundcloud-api-ts` (`track.id` or `track.urn`). That embeds the official Widget resource (`https://api.soundcloud.com/tracks/{id}`) — the same URL SoundCloud's oEmbed iframe uses. `url` still works for a permalink, an API resource, a full player iframe `src`, or a `getSoundCloudWidgetUrl()` fragment.
+
+If none of `trackId`, `playlistId`, or `url` is set, the component renders nothing (so `<SCWidget trackId={track?.id} />` can wait for data). Changing the source or any player param later does **not** reload the iframe; the component routes changes through `widget.load()`.
 
 ---
 
@@ -103,7 +106,9 @@ The `url` prop takes a plain SoundCloud track, playlist, or user URL (or an `api
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `url` | `string` | **required** | SoundCloud track, playlist, or user URL (unencoded) |
+| `trackId` | `string \| number` | — | Track ID or `soundcloud:tracks:{id}` URN. Embeds `https://api.soundcloud.com/tracks/{id}` |
+| `playlistId` | `string \| number` | — | Playlist ID or `soundcloud:playlists:{id}` URN. Embeds `https://api.soundcloud.com/playlists/{id}` |
+| `url` | `string` | — | Permalink, API resource, player iframe `src`, or `getSoundCloudWidgetUrl()` fragment. Normalized automatically. If no source is set, nothing is rendered. |
 | `width` | `string \| number` | `"100%"` | iframe width |
 | `height` | `string \| number` | `166` | iframe height (ignored in `hidden` mode) |
 | `style` | `CSSProperties` | — | Inline styles (ignored in `hidden` mode) |
@@ -130,7 +135,7 @@ The `url` prop takes a plain SoundCloud track, playlist, or user URL (or an `api
 | `liking` | `boolean` | — | Show like button * |
 | `showComments` | `boolean` | — | Show comments * |
 | `hideRelated` | `boolean` | — | Hide related tracks * |
-| `onReady` | `(ctx: { widget: SCWidgetInstance }) => void` | — | Fired when widget is ready; receives the raw widget instance |
+| `onReady` | `(ctx: { widget: SCWidgetInstance }) => void` | — | Fired when widget is ready. `widget.load()` accepts camelCase `SCWidgetParams` (translated to official snake_case). |
 | `onPlay` | `(e: SCAudioEventPayload) => void` | — | Fired on play |
 | `onPause` | `(e: SCAudioEventPayload) => void` | — | Fired on pause |
 | `onFinish` | `(e: SCAudioEventPayload) => void` | — | Fired when track finishes |
@@ -195,7 +200,7 @@ export default function Player() {
 | `next()` | Skip to next track (playlist) |
 | `prev()` | Go to previous track (playlist) |
 | `skip(index: number)` | Jump to track at index (playlist) |
-| `load(url, options?)` | Load a new URL; options extend `SCWidgetParams` + optional `callback` |
+| `load(url, options?)` | Load a new URL; camelCase `SCWidgetParams` are translated to official snake_case |
 
 ### Callback-style getters
 
@@ -205,7 +210,7 @@ export default function Player() {
 | `getPosition(cb)` | Get current position in ms |
 | `getVolume(cb)` | Get current volume (0–100) |
 | `getSounds(cb)` | Get all sounds in playlist |
-| `getCurrentSound(cb)` | Get currently playing sound object |
+| `getCurrentSound(cb)` | Get currently playing sound (does not fire if the widget is not ready) |
 | `getCurrentSoundIndex(cb)` | Get index of current sound |
 | `isPaused(cb)` | Check if paused |
 
@@ -308,9 +313,9 @@ interface SCWidgetState {
   isReady: boolean;       // true after onReady fires
   isPlaying: boolean;     // updated on play/pause/finish
   positionMs: number;     // updated on play_progress and seek
-  durationMs: number;     // fetched on ready
-  sound: SCSound | null;  // current track info, fetched on ready
-  soundIndex: number;     // current track index in playlist
+  durationMs: number;     // fetched on ready and on play (playlist next/prev)
+  sound: SCSound | null;  // current track; refreshed on ready and play
+  soundIndex: number;     // current index; refreshed on ready and play
 }
 ```
 
@@ -326,7 +331,7 @@ interface SCWidgetState {
 | `next()` | Skip to next track |
 | `prev()` | Go to previous track |
 | `skip(index)` | Jump to track index |
-| `load(url, options?)` | Load a new URL |
+| `load(url, options?)` | Load a new URL; camelCase `SCWidgetParams` are translated to snake_case |
 
 ---
 
@@ -407,8 +412,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 "use client";
 import { SCWidget } from "soundcloud-widget-react";
 
-export function PlayerBar({ url }: { url: string }) {
-  return <SCWidget url={url} height={166} width="100%" autoPlay />;
+export function PlayerBar({ trackId }: { trackId: number }) {
+  return <SCWidget trackId={trackId} height={166} width="100%" autoPlay />;
 }
 ```
 
@@ -445,6 +450,29 @@ return (
 
 ---
 
+## Embed helpers
+
+Use these when you are not rendering `<SCWidget>` (emails, MDX, a hand-built iframe):
+
+```ts
+import {
+  getOEmbed,
+  iframeSrcFromOEmbedHtml,
+  trackResourceUrl,
+  resolveWidgetResource,
+} from "soundcloud-widget-react";
+
+const resource = trackResourceUrl(308946187);
+// https://api.soundcloud.com/tracks/308946187
+
+const oembed = await getOEmbed("https://soundcloud.com/forss/flickermood");
+const src = iframeSrcFromOEmbedHtml(oembed.html);
+```
+
+`<SCWidget trackId>` already uses that same resource URL — you do not need `getOEmbed` for the React player.
+
+---
+
 ## Related
 
 This package is part of the **twin-paws SoundCloud ecosystem**:
@@ -455,23 +483,19 @@ This package is part of the **twin-paws SoundCloud ecosystem**:
 | [soundcloud-api-ts-next](https://github.com/twin-paws/soundcloud-api-ts-next) | Next.js integration: React hooks, secure API routes, OAuth PKCE, RSC helpers |
 | **soundcloud-widget-react** ← you are here | React component for the SoundCloud HTML5 Widget API — embed players and control playback programmatically |
 
-> **Note:** `soundcloud-api-ts`'s `getSoundCloudWidgetUrl()` returns a **pre-encoded** widget URL fragment for hand-building iframe embeds. Do **not** pass its output to `<SCWidget url>` — this component expects a plain, unencoded SoundCloud URL (e.g. `track.permalink_url`) and does its own encoding.
-
-**Common pattern** — combine all three in a Next.js app:
+**Common pattern** — combine with the API packages in a Next.js app:
 
 ```tsx
-// 1. Fetch track data server-side (soundcloud-api-ts-next)
 import { getTrack } from "soundcloud-api-ts-next/server";
-const track = await getTrack(trackId, config, { revalidate: 60 });
-
-// 2. Render an embeddable player (soundcloud-widget-react)
 import { SCWidget } from "soundcloud-widget-react";
-<SCWidget url={track.permalink_url} onPlay={() => trackPlay(track.id)} />
 
-// 3. React hooks for dynamic data (soundcloud-api-ts-next)
-import { useTrack } from "soundcloud-api-ts-next";
-const { data } = useTrack(trackId);
+const track = await getTrack(trackId, config, { revalidate: 60 });
+<SCWidget trackId={track.id} onPlay={() => trackPlay(track.id)} />
 ```
+
+`getOEmbed(url)` is exported if you need the official iframe HTML string (emails, MDX). Helpers `trackResourceUrl`, `playlistResourceUrl`, `resolveWidgetResource`, `normalizeWidgetUrl`, `embedId`, and `iframeSrcFromOEmbedHtml` are also public. `<SCWidget trackId>` already uses the same resource URL without that extra request.
+
+`getSoundCloudWidgetUrl()` from `soundcloud-api-ts` is a pre-encoded fragment for hand-built iframes. If you pass it as `url`, it is decoded automatically.
 
 ---
 

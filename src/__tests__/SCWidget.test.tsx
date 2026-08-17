@@ -96,7 +96,9 @@ describe("event handlers", () => {
     render(<SCWidget url={URL} onReady={onReady} />);
     await flush();
     lastWidget().emit(SCWidgetEvents.READY);
-    expect(onReady).toHaveBeenCalledWith({ widget: lastWidget().widget });
+    const passed = onReady.mock.calls[0][0].widget;
+    expect(typeof passed.play).toBe("function");
+    expect(typeof passed.load).toBe("function");
   });
 
   it("uses the latest callback without re-binding (no stale closures)", async () => {
@@ -171,6 +173,40 @@ describe("url/param changes go through widget.load()", () => {
   });
 });
 
+describe("trackId / playlistId embed resource", () => {
+  it("builds the official api.soundcloud.com tracks URL into the iframe src", () => {
+    const { container } = render(<SCWidget trackId={308946187} />);
+    const src = new window.URL(container.querySelector("iframe")!.getAttribute("src")!);
+    expect(src.origin + src.pathname).toBe("https://w.soundcloud.com/player/");
+    expect(src.searchParams.get("url")).toBe("https://api.soundcloud.com/tracks/308946187");
+  });
+
+  it("trackId wins over url", () => {
+    const { container } = render(
+      <SCWidget trackId={1} url="https://soundcloud.com/artist/track" />
+    );
+    const src = new window.URL(container.querySelector("iframe")!.getAttribute("src")!);
+    expect(src.searchParams.get("url")).toBe("https://api.soundcloud.com/tracks/1");
+  });
+
+  it("playlistId embeds playlists resource", () => {
+    const { container } = render(<SCWidget playlistId={99} />);
+    const src = new window.URL(container.querySelector("iframe")!.getAttribute("src")!);
+    expect(src.searchParams.get("url")).toBe("https://api.soundcloud.com/playlists/99");
+  });
+
+  it("strips a soundcloud:tracks: URN", () => {
+    const { container } = render(<SCWidget trackId="soundcloud:tracks:42" />);
+    const src = new window.URL(container.querySelector("iframe")!.getAttribute("src")!);
+    expect(src.searchParams.get("url")).toBe("https://api.soundcloud.com/tracks/42");
+  });
+
+  it("renders nothing (does not throw) when no source is set", () => {
+    const { container } = render(<SCWidget />);
+    expect(container.querySelector("iframe")).toBeNull();
+  });
+});
+
 describe("iframe rendering", () => {
   it("renders params into the iframe src as snake_case query params", async () => {
     const { container } = render(
@@ -206,6 +242,34 @@ describe("iframe rendering", () => {
 });
 
 describe("imperative ref API", () => {
+  it("ref.load translates camelCase params to snake_case", async () => {
+    const ref = createRef<SCWidgetRef>();
+    render(<SCWidget ref={ref} url={URL} />);
+    await flush();
+    const mock = lastWidget();
+    ref.current!.load(`${URL}-next`, { autoPlay: true, showUser: false, callback: () => {} });
+    expect(mock.widget.load).toHaveBeenCalledWith(
+      `${URL}-next`,
+      expect.objectContaining({ auto_play: true, show_user: false }),
+    );
+    const opts = mock.widget.load.mock.calls[0][1] as Record<string, unknown>;
+    expect(opts).not.toHaveProperty("autoPlay");
+    expect(opts).toHaveProperty("callback");
+  });
+
+  it("onReady widget.load also translates camelCase", async () => {
+    const onReady = vi.fn();
+    render(<SCWidget url={URL} onReady={onReady} />);
+    await flush();
+    lastWidget().emit(SCWidgetEvents.READY);
+    const publicWidget = onReady.mock.calls[0][0].widget;
+    publicWidget.load(`${URL}-from-ready`, { autoPlay: true });
+    expect(lastWidget().widget.load).toHaveBeenCalledWith(
+      `${URL}-from-ready`,
+      expect.objectContaining({ auto_play: true }),
+    );
+  });
+
   it("proxies control methods to the widget", async () => {
     const ref = createRef<SCWidgetRef>();
     render(<SCWidget ref={ref} url={URL} />);

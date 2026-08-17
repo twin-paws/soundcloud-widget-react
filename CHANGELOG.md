@@ -4,6 +4,30 @@ All notable changes to `soundcloud-widget-react` are documented here.
 
 ---
 
+## [2.2.0] — 2026-08-17
+
+### Added
+- **`trackId` / `playlistId` props** — embed the official Widget resource (`https://api.soundcloud.com/tracks/{id}`), the same URL oEmbed puts in the iframe. Preferred when you already have an ID from `soundcloud-api-ts`.
+- **`getOEmbed`**, `resolveWidgetResource`, `trackResourceUrl`, `playlistResourceUrl`, `embedId`, `iframeSrcFromOEmbedHtml` — oEmbed / resource helpers live here (not in the API client). Use `getOEmbed` when you want the official iframe HTML; `<SCWidget trackId>` already uses the same resource without a network hop.
+- **`normalizeWidgetUrl`** — decodes `getSoundCloudWidgetUrl()` fragments, unwraps a full player iframe `src`, and leaves permalink query strings intact.
+
+### Changed
+- **`url` is optional** when `trackId` or `playlistId` is set. Recommended Next.js pattern is `<SCWidget trackId={track.id} />`, not `url={track.permalink_url}`. Missing source renders nothing (no throw) so `<SCWidget trackId={track?.id} />` can wait for data.
+
+### Fixed
+- **`ref.load()` / `controls.load()` / `onReady` `widget.load()` translate camelCase params** to the official snake_case keys (`autoPlay` → `auto_play`). Same silent-drop as 2.0.1 on the imperative path. Official snake_case keys still pass through.
+- **`trackId` / `playlistId` accept URNs** (`soundcloud:tracks:123`) — previously concatenated into a broken resource URL.
+- **`normalizeWidgetUrl`** no longer truncates permalink query strings at `&`; full `w.soundcloud.com/player/?url=` iframe srcs are unwrapped.
+- **`useSCWidget` refreshes `sound` / `durationMs` / `soundIndex` on PLAY** so playlist next/prev is not stuck on the first track.
+- **Script-inject timeout** — a hung first `<script>` insert now resets the singleton after 10s (the poll path already did).
+- **`SC.Widget()` throw retries** a few times instead of leaving the iframe dead.
+
+### Documentation
+
+- README / AGENTS / llms / llms-full match the 2.2.0 surface: `trackId` / URN, adapted `load()`, missing-source render, PLAY metadata refresh, embed helpers. `llms.txt`, `llms-full.txt`, and `AGENTS.md` ship in the npm package.
+
+---
+
 ## [2.1.0] — 2026-06-10
 
 Audit release — see `docs/audit-2026-06.md` for the full report. All changes are non-breaking.

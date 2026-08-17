@@ -1,6 +1,6 @@
 # soundcloud-widget-react — Demo
 
-A live Next.js demo showcasing every major feature of [soundcloud-widget-react](https://github.com/twin-paws/soundcloud-widget-react) v2.0.0.
+A live Next.js demo showcasing every major feature of [soundcloud-widget-react](https://github.com/twin-paws/soundcloud-widget-react) v2.2.0.
 
 ## What it shows
 

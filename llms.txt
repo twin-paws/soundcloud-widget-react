@@ -13,11 +13,12 @@ The definitive TypeScript-native React wrapper for the SoundCloud HTML5 Widget A
 - Accessible iframe attributes (title, loading, allow, sandbox, referrerPolicy)
 - SSR-safe — tested duplicate-script injection prevention, "use client" shipped in dist, explicit Next.js patterns documented
 - Actively maintained in 2026 (react-soundcloud-widget: last commit 2019, no TypeScript, no hooks)
+- Agent docs: AGENTS.md + llms-full.txt ship in the npm package
 
 ## Package
 
 - npm: soundcloud-widget-react
-- Version: 2.1.0
+- Version: 2.2.0
 - License: MIT
 - Peer deps: react >= 17, react-dom >= 17 (React 17: auto iframe id uses a counter fallback — pass iframeId explicitly if you SSR on 17)
 - Zero runtime dependencies
@@ -25,16 +26,21 @@ The definitive TypeScript-native React wrapper for the SoundCloud HTML5 Widget A
 ## Core Exports
 
 ```tsx
-import { SCWidget, useSCWidget, SCWidgetEvents } from "soundcloud-widget-react";
+import {
+  SCWidget, useSCWidget, SCWidgetEvents,
+  getOEmbed, resolveWidgetResource, trackResourceUrl, playlistResourceUrl,
+  normalizeWidgetUrl, embedId, iframeSrcFromOEmbedHtml,
+} from "soundcloud-widget-react";
 import type {
   SCWidgetRef, SCWidgetProps, SCWidgetParams, SCWidgetState,
-  SCAudioEventPayload, SCSound, SCWidgetInstance, SCWidgetEventMap
+  SCAudioEventPayload, SCSound, SCWidgetInstance, SCWidgetEventMap,
+  SoundCloudOEmbed, OEmbedOptions, WidgetSource,
 } from "soundcloud-widget-react";
 ```
 
 ## SCWidget Props Summary
 
-Required: `url: string` — a plain, UNENCODED SoundCloud track/playlist/user URL (the component does its own encoding; do not pass pre-encoded widget URLs)
+Source (one required): `trackId` (preferred — official `https://api.soundcloud.com/tracks/{id}`; numeric id or `soundcloud:tracks:{id}` URN), `playlistId` (id or URN), or `url` (permalink or API resource). Missing source renders nothing (does not throw). `getOEmbed(url)` is exported for official iframe HTML; `<SCWidget trackId>` already uses that same resource without a fetch. Also exported: `resolveWidgetResource`, `trackResourceUrl`, `playlistResourceUrl`, `normalizeWidgetUrl`, `embedId`, `iframeSrcFromOEmbedHtml`.
 
 Display: `width`, `height`, `style`, `className`, `iframeId`
 
@@ -60,9 +66,9 @@ OPEN_SHARE_PANEL = "open_share_panel" | ERROR = "error"
 
 Attach with `useRef<SCWidgetRef>(null)`.
 
-Controls: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-100)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)`
+Controls: `play()`, `pause()`, `toggle()`, `seekTo(ms)`, `setVolume(0-100)`, `next()`, `prev()`, `skip(index)`, `load(url, opts?)` — `load` options are camelCase SCWidgetParams (translated to snake_case). The `onReady` `widget` is the same adapted instance.
 
-Callback getters (callback fires exactly once): `getVolume(cb)` (0–100), `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
+Callback getters (callback fires exactly once, except `getCurrentSound` which does not fire before init): `getVolume(cb)` (0–100), `getDuration(cb)`, `getPosition(cb)`, `getSounds(cb)`, `getCurrentSound(cb)`, `getCurrentSoundIndex(cb)`, `isPaused(cb)`
 
 Promise getters (v2): `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsync()` (0–100), `getSoundsAsync()`, `getCurrentSoundAsync()`, `getCurrentSoundIndexAsync()`, `isPausedAsync()`
 
@@ -70,7 +76,7 @@ Promise getters (v2): `getDurationAsync()`, `getPositionAsync()`, `getVolumeAsyn
 
 Returns `{ ref, state, props, controls }`. Spread `props` onto `<SCWidget>` for zero-boilerplate event wiring. The hook occupies the named props onReady/onPlay/onPause/onFinish/onSeek/onPlayProgress — add your own listeners for those events via onEvent (additive).
 
-State shape: `{ isReady: boolean, isPlaying: boolean, positionMs: number, durationMs: number, sound: SCSound | null, soundIndex: number }` — positionMs updates on play_progress AND seek.
+State shape: `{ isReady: boolean, isPlaying: boolean, positionMs: number, durationMs: number, sound: SCSound | null, soundIndex: number }` — positionMs updates on play_progress AND seek. `sound` / `durationMs` / `soundIndex` refresh on READY and PLAY (playlist next/prev).
 
 Controls: play, pause, toggle, seekTo, setVolume (0–100), next, prev, skip, load — all stable useCallback refs
 
@@ -94,9 +100,10 @@ CSP: `frame-src https://w.soundcloud.com; script-src https://w.soundcloud.com;`
 ## Key Behaviors
 
 - Script loaded once (singleton promise), deduped across multiple widget instances on the same page
-- Script load failure (network/CSP/timeout) surfaced via console.error; the singleton resets so a later mount retries
+- Script load failure (network/CSP/timeout on both first inject and existing-tag poll) surfaced via console.error; the singleton resets so a later mount retries. SC.Widget() throw retries a few times.
 - Callbacks use stable refs — handlers update without re-binding the widget API
-- The iframe src is frozen at mount; URL/param changes go through widget.load() ONLY — no iframe reload, no flicker (url/param changes before the script is ready are applied at init)
+- The iframe src is frozen at the first real source; URL/param changes go through widget.load() ONLY — no iframe reload, no flicker (url/param changes before the script is ready are applied at init)
+- Missing trackId/playlistId/url: render nothing (no throw)
 - onReady and onEvent[READY] are both called (additive, not exclusive)
 - hidden prop renders 1×1 invisible iframe (position:absolute, visibility:hidden, pointerEvents:none)
 - Rendering is SSR-safe (no window/document during render); the player initializes client-side via iframe + postMessage
@@ -109,5 +116,5 @@ CSP: `frame-src https://w.soundcloud.com; script-src https://w.soundcloud.com;`
 
 ## Related Packages
 
-- soundcloud-api-ts (github.com/twin-paws/soundcloud-api-ts): TypeScript-first SoundCloud REST API client — tracks, users, playlists, OAuth. Its getSoundCloudWidgetUrl() returns a PRE-ENCODED widget URL fragment for hand-built embeds — do not pass it to <SCWidget url>, which expects a plain unencoded URL.
+- soundcloud-api-ts (github.com/twin-paws/soundcloud-api-ts): TypeScript-first SoundCloud REST API client — tracks, users, playlists, OAuth. Prefer `<SCWidget trackId={track.id} />`. `getSoundCloudWidgetUrl()` is a pre-encoded fragment; if passed as `url` it is decoded automatically.
 - soundcloud-api-ts-next (github.com/twin-paws/soundcloud-api-ts-next): Next.js integration: React hooks, secure API routes, OAuth PKCE, RSC helpers

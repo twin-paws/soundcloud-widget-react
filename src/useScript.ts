@@ -40,8 +40,16 @@ function loadScript(): Promise<void> {
     const script = document.createElement("script");
     script.src = SC_API_URL;
     script.async = true;
-    script.onload = () => resolve();
+    const timeout = setTimeout(() => {
+      scriptPromise = null;
+      reject(new Error("Timed out waiting for SoundCloud Widget API"));
+    }, 10_000);
+    script.onload = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
     script.onerror = () => {
+      clearTimeout(timeout);
       scriptPromise = null;
       reject(new Error("Failed to load SoundCloud Widget API"));
     };

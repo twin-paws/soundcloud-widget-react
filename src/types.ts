@@ -50,6 +50,10 @@ export interface SCSound {
 export interface SCWidgetInstance {
   bind(eventName: string, listener: (e?: SCAudioEventPayload) => void): void;
   unbind(eventName: string): void;
+  /**
+   * Reload the widget. CamelCase {@link SCWidgetParams} are translated to the
+   * official snake_case keys; already-snake_case keys pass through.
+   */
   load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
   play(): void;
   pause(): void;
@@ -94,6 +98,10 @@ export interface SCWidgetRef {
   next(): void;
   prev(): void;
   skip(soundIndex: number): void;
+  /**
+   * Reload the widget. CamelCase {@link SCWidgetParams} are translated to the
+   * official snake_case keys; already-snake_case keys pass through.
+   */
   load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
   /** Volume in the Widget API's 0–100 range. */
   getVolume(callback: (volume: number) => void): void;
@@ -113,12 +121,28 @@ export interface SCWidgetRef {
 }
 
 export interface SCWidgetProps extends SCWidgetParams {
-  url: string;
+  /**
+   * SoundCloud page, API resource, player iframe `src`, or
+   * `getSoundCloudWidgetUrl()` fragment. Prefer {@link trackId} when you
+   * already have an ID from `soundcloud-api-ts`.
+   */
+  url?: string;
+  /**
+   * Track ID or `soundcloud:tracks:{id}` URN — embeds
+   * `https://api.soundcloud.com/tracks/{id}` (official oEmbed resource).
+   */
+  trackId?: string | number;
+  /**
+   * Playlist/set ID or `soundcloud:playlists:{id}` URN — embeds
+   * `https://api.soundcloud.com/playlists/{id}`.
+   */
+  playlistId?: string | number;
   width?: string | number;
   height?: string | number;
   style?: CSSProperties;
   className?: string;
   iframeId?: string;
+  /** Fired when ready. `widget.load()` accepts camelCase {@link SCWidgetParams}. */
   onReady?: (ctx: { widget: SCWidgetInstance }) => void;
   onPlay?: (e: SCAudioEventPayload) => void;
   onPause?: (e: SCAudioEventPayload) => void;

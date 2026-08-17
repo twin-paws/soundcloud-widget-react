@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
-import type { SCWidgetInstance, SCWidgetProps, SCWidgetRef, SCWidgetState } from "./types";
+import type { SCAudioEventPayload, SCWidgetInstance, SCWidgetParams, SCWidgetProps, SCWidgetRef, SCWidgetState } from "./types";
 
 interface UseSCWidgetResult {
   ref: React.RefObject<SCWidgetRef>;
@@ -15,7 +15,7 @@ interface UseSCWidgetResult {
     next(): void;
     prev(): void;
     skip(index: number): void;
-    load(url: string, options?: Record<string, unknown>): void;
+    load(url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }): void;
   };
 }
 
@@ -30,16 +30,21 @@ export function useSCWidget(): UseSCWidgetResult {
     soundIndex: 0,
   });
 
-  const onReady = useCallback(async (_ctx: { widget: SCWidgetInstance }) => {
+  const refreshSound = useCallback(async (patch: Partial<SCWidgetState>) => {
     const durationMs = await ref.current?.getDurationAsync() ?? 0;
     const sound = await ref.current?.getCurrentSoundAsync().catch(() => null) ?? null;
     const soundIndex = await ref.current?.getCurrentSoundIndexAsync() ?? 0;
-    setState((s) => ({ ...s, isReady: true, durationMs, sound, soundIndex }));
+    setState((s) => ({ ...s, durationMs, sound, soundIndex, ...patch }));
   }, []);
 
-  const onPlay = useCallback(() => {
-    setState((s) => ({ ...s, isPlaying: true }));
-  }, []);
+  const onReady = useCallback(async (_ctx: { widget: SCWidgetInstance }) => {
+    await refreshSound({ isReady: true });
+  }, [refreshSound]);
+
+  const onPlay = useCallback((e: SCAudioEventPayload) => {
+    setState((s) => ({ ...s, isPlaying: true, positionMs: e.currentPosition }));
+    void refreshSound({});
+  }, [refreshSound]);
 
   const onPause = useCallback(() => {
     setState((s) => ({ ...s, isPlaying: false }));
@@ -75,7 +80,9 @@ export function useSCWidget(): UseSCWidgetResult {
     next: useCallback(() => { ref.current?.next(); }, []),
     prev: useCallback(() => { ref.current?.prev(); }, []),
     skip: useCallback((i: number) => { ref.current?.skip(i); }, []),
-    load: useCallback((url: string, options?: Record<string, unknown>) => { ref.current?.load(url, options); }, []),
+    load: useCallback((url: string, options?: Partial<SCWidgetParams> & { callback?: () => void }) => {
+      ref.current?.load(url, options);
+    }, []),
   };
 
   return { ref, state, props, controls };

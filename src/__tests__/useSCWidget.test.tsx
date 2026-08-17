@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { SCWidget } from "../SCWidget";
 import { useSCWidget } from "../useSCWidget";
 import { SCWidgetEvents } from "../types";
-import { installSC, type MockWidget } from "./helpers";
+import { installSC, sound, type MockWidget } from "./helpers";
 
 const URL = "https://soundcloud.com/artist/track";
 
@@ -92,6 +92,47 @@ it("updates positionMs on PLAY_PROGRESS", async () => {
     })
   );
   expect(readState().positionMs).toBe(12345);
+});
+
+it("refreshes sound metadata on PLAY (playlist next/prev)", async () => {
+  const mock = await mountHarness();
+  await act(async () => {
+    mock.emit(SCWidgetEvents.READY);
+  });
+  mock.widget.getCurrentSound.mockImplementation((cb: (s: typeof sound) => void) =>
+    cb({ ...sound, title: "Next Track" }),
+  );
+  mock.widget.getDuration.mockImplementation((cb: (d: number) => void) => cb(999));
+  mock.widget.getCurrentSoundIndex.mockImplementation((cb: (i: number) => void) => cb(1));
+  await act(async () => {
+    mock.emit(SCWidgetEvents.PLAY, {
+      relativePosition: 0,
+      loadProgress: 0,
+      currentPosition: 0,
+    });
+  });
+  expect(readState()).toMatchObject({
+    isPlaying: true,
+    title: "Next Track",
+    durationMs: 999,
+    soundIndex: 1,
+  });
+});
+
+it("controls.load translates camelCase params", async () => {
+  let controls!: ReturnType<typeof useSCWidget>["controls"];
+  function ControlHarness() {
+    const hook = useSCWidget();
+    controls = hook.controls;
+    return <SCWidget ref={hook.ref} url={URL} {...hook.props} />;
+  }
+  render(<ControlHarness />);
+  await act(async () => {});
+  controls.load(`${URL}-b`, { autoPlay: true, showArtwork: false });
+  expect(sc.created[0].widget.load).toHaveBeenCalledWith(
+    `${URL}-b`,
+    expect.objectContaining({ auto_play: true, show_artwork: false }),
+  );
 });
 
 it("controls proxy to the widget through the ref", async () => {

@@ -1,8 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
 import { SCWidget, useSCWidget } from "soundcloud-widget-react";
-import type { SCWidgetRef } from "soundcloud-widget-react";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -25,16 +23,16 @@ export default function HiddenPlayer() {
       </p>
 
       <SCWidget
-        ref={ref as RefObject<SCWidgetRef>}
+        ref={ref}
         url="https://soundcloud.com/caseywillis/thats-me-in-the-corner"
         hidden
         {...props}
       />
 
       <div className="rounded-lg p-4 mb-4 text-xs font-mono overflow-x-auto" style={{ background: "#0a0a0a", color: "#ccc" }}>
-        <span style={{ color: "#888" }}>{"// No iframe rendered in the DOM"}</span><br />
+        <span style={{ color: "#888" }}>{"// 1×1 invisible iframe — audio only"}</span><br />
         <span style={{ color: "#00a99d" }}>{"<SCWidget"}</span><br />
-        {"  url={url}"}<br />
+        {"  trackId={trackId}"}<br />
         {"  "}<span style={{ color: "#00a99d" }}>hidden</span><br />
         {"  {...props}"}<br />
         <span style={{ color: "#00a99d" }}>{"/>"}</span>

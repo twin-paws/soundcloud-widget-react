@@ -1,8 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
 import { SCWidget, useSCWidget } from "soundcloud-widget-react";
-import type { SCWidgetRef } from "soundcloud-widget-react";
 
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -25,7 +23,7 @@ export default function CustomControlsPlayer() {
       </p>
 
       <SCWidget
-        ref={ref as RefObject<SCWidgetRef>}
+        ref={ref}
         url="https://soundcloud.com/caseywillis/thats-me-in-the-corner"
         hidden
         {...props}
