@@ -33,9 +33,11 @@ it("two widgets on one page inject exactly one script tag", async () => {
 
 it("a widget mounted after the script resolved injects nothing and inits immediately", async () => {
   const before = scriptTags().length;
+  const SC = (window as unknown as { SC: { Widget: ReturnType<typeof vi.fn> } }).SC;
+  // Relative count: Vitest 5 clears mock call history between tests by default.
+  const callsBefore = SC.Widget.mock.calls.length;
   render(<SCWidget url={`${URL}-3`} />);
   await act(async () => {});
   expect(scriptTags()).toHaveLength(before);
-  const SC = (window as unknown as { SC: { Widget: ReturnType<typeof vi.fn> } }).SC;
-  expect(SC.Widget).toHaveBeenCalledTimes(3);
+  expect(SC.Widget).toHaveBeenCalledTimes(callsBefore + 1);
 });
