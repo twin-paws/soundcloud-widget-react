@@ -20,7 +20,9 @@ interface UseSCWidgetResult {
 }
 
 export function useSCWidget(): UseSCWidgetResult {
-  const ref = useRef<SCWidgetRef>(null);
+  // Cast keeps the public type identical under @types/react 18 and 19
+  // (19's useRef(null) returns RefObject<T | null>, which 18's ref prop rejects).
+  const ref = useRef<SCWidgetRef>(null) as React.RefObject<SCWidgetRef>;
   const [state, setState] = useState<SCWidgetState>({
     isReady: false,
     isPlaying: false,
