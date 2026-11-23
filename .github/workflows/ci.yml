@@ -9,8 +9,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node: [22, 24]
+        react: [18, 19]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,4 +23,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
+      # The lockfile pins React 19. Swap in the matrix version for the test run only;
+      # typecheck and build above always use the locked React 19 types.
+      - name: Use React ${{ matrix.react }}
+        if: matrix.react != 19
+        run: pnpm add -D react@${{ matrix.react }} react-dom@${{ matrix.react }}
       - run: pnpm test
